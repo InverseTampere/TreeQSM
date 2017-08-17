@@ -11,6 +11,6 @@ Raumonen et al. 2013, Remote Sensing
 Calders et al. 2015, Methods in Ecology and Evolution
 Raumonen et al. 2015, ISPRS Annals
 Åkerblom et al. 2015, Remote Sensing
-==============================
+
 The TreeQSM is written in Matlab.
 The main function is _treeqsm.m_, which takes in a point cloud and a structure array specifying the needed parameters. Refer to the manual or the help documentation of a particular function for further details.
