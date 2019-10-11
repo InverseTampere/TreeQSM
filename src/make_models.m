@@ -15,11 +15,20 @@
 
 function QSMs = make_models(dataname,savename,Nmodels,inputs)
 
+% ---------------------------------------------------------------------
+% MAKE_MODELS.M       Makes QSMs of given point clouds.
+%
+% Version 1.1.0
+% Latest update     03 Oct 2019
+%
+% Copyright (C) 2013-2019 Pasi Raumonen
+% ---------------------------------------------------------------------
+%
 % Makes QSMs of given point clouds specified by the "dataname" and by the
 % other inputs. The results are saved into file named "savename".
 % Notice, the code does not save indivual QSM runs into their own .mat or
 % .txt files but saves all models into one big .mat file.
-
+%
 % Inputs:
 % dataname      String specifying the .mat-file containing the point
 %                   clouds that are used for the QSM reconstruction.
@@ -34,6 +43,17 @@ function QSMs = make_models(dataname,savename,Nmodels,inputs)
 %
 % Output:
 % QSMs          Structure array containing all the QSMs generated
+% ---------------------------------------------------------------------
+
+% Changes from version 1.0.0 to 1.1.0, 03 Oct 2019:
+% 1) Added try-catch structure where "treeqsm" is called, so that if there
+%    is an error during the reconstruction process of one tree, then the 
+%    larger process of making multiple QSMs from multiple tree is not
+%    stopped.
+% 2) Changed the way the data is loaded. Previously all the data was
+%    loaded into workspace, now only one point cloud is in the workspace.
+% 3) Corrected a bug where incomplete QSM was saved as complete QSM
+% 4) Changed where the input-structure for each tree is reconstructed
 
 if nargin < 2
     disp('Not enough inputs, no models generated!')
@@ -48,21 +68,29 @@ end
 %% Define the parameter values
 if nargin == 3 || nargin == 2
     clear inputs
-    % The following parameters can be varied and should be optimised (can have multiple values):
-    inputs.PatchDiam1 = [0.12 0.16]; % Patch size of the first uniform-size cover
-    inputs.PatchDiam2Min = [0.02 0.03]; % Minimum patch size of the cover sets in the second cover
-    inputs.PatchDiam2Max = [0.1]; % Maximum cover set size in the stem's base in the second cover
-    inputs.lcyl = [3]; % Relative (length/radius) length of the cylinders,
-    inputs.FilRad = [3]; % Relative radius for outlier point filtering,
+    % The following parameters can be varied and should be optimised 
+    % (each can have multiple values):
+    % Patch size of the first uniform-size cover:
+    inputs.PatchDiam1 = [0.05 0.075 0.1]; 
+    % Minimum patch size of the cover sets in the second cover:
+    inputs.PatchDiam2Min = [0.01 0.02]; 
+    % Maximum cover set size in the stem's base in the second cover:
+    inputs.PatchDiam2Max = [0.05 0.06 0.07]; 
+    % Relative (length/radius) length of the cylinders:
+    inputs.lcyl = [3 5];
+    % Relative radius for outlier point filtering:
+    inputs.FilRad = [3]; 
     
     % The following parameters can be varied and but usually can be kept as
     % shown (i.e. as little bigger than PatchDiam parameters):
-    inputs.BallRad1 = inputs.PatchDiam1+0.02; % Ball radius used for the first uniform-size cover generation
-    inputs.BallRad2 = inputs.PatchDiam2Max+0.01; % Maximum ball radius used for the second cover generation
+    % Ball radius used for the first uniform-size cover generation:
+    inputs.BallRad1 = inputs.PatchDiam1+0.02; 
+    % Maximum ball radius used for the second cover generation:
+    inputs.BallRad2 = inputs.PatchDiam2Max+0.01; 
     
     % The following parameters can be usually kept fixed as shown:
-    inputs.nmin1 = 3; % Minimum number of points in BallRad1-balls, generally good value is 3
-    inputs.nmin2 = 1; % Minimum number of points in BallRad2-balls, generally good value is 1
+    inputs.nmin1 = 3; % Minimum number of points in BallRad1-balls, good value is 3
+    inputs.nmin2 = 1; % Minimum number of points in BallRad2-balls, good value is 1
     inputs.OnlyTree = 1; % If "1", then point cloud contains points only from the tree
     inputs.Tria = 0; % If "1", then triangulation produces
     inputs.Dist = 1; % If "1", then computes the point-model distances
@@ -70,36 +98,63 @@ if nargin == 3 || nargin == 2
     % Different cylinder radius correction options for modifying too large and
     % too small cylinders:
     % Traditional TreeQSM choices:
-    inputs.MinCylRad = 0.0025; % Minimum cylinder radius, used particularly in the taper corrections
-    inputs.ParentCor = 1; % Child branch cylinders radii are always smaller than the parent branche's cylinder radii
-    inputs.TaperCor = 1; % Use partially linear (stem) and parabola (branches) taper corrections
-    % Growth volume correction approach introduced by Jan Hackenberg, allometry: GrowthVol = a*Radius^b+c
-    inputs.GrowthVolCor = 0; % Use growth volume correction
-    inputs.GrowthVolFac = 2.5; % fac-parameter of the growth vol. approach, defines upper and lower boundary
+    % Minimum cylinder radius, used particularly in the taper corrections:
+    inputs.MinCylRad = 0.0025;
+    % Child branch cylinders radii are always smaller than the parent
+    % branche's cylinder radii:
+    inputs.ParentCor = 1;
+    % Use partially linear (stem) and parabola (branches) taper corrections:
+    inputs.TaperCor = 1; 
+    % Growth volume correction approach introduced by Jan Hackenberg, 
+    % allometry: GrowthVol = a*Radius^b+c
+    % Use growth volume correction:
+    inputs.GrowthVolCor = 0; 
+    % fac-parameter of the growth vol. approach, defines upper and lower
+    % boundary:
+    inputs.GrowthVolFac = 2.5; 
+    
+    inputs.name = 'test';
+    inputs.tree = 0;
+    inputs.plot = 0;
+    inputs.savetxt = 0;
+    inputs.savemat = 0;
+    inputs.disp = 0;
 end
 
+% Compute the number of input parameter combinations
+in = inputs(1);
+ninputs = prod([length(in.PatchDiam1) length(in.PatchDiam2Min)...
+    length(in.PatchDiam2Max) length(in.lcyl) length(in.FilRad)]);
 
 %% Load data
-load([dataname,'.mat']) % 'dataname.mat' contains the point clouds that are modelled
-S = whos; % names of the point cloud
-n = max(size(S));
-I = false(n,1);
-for i = 1:n
-    if S(i).size(1) > 100 && S(i).size(2) == 3
-        I(i) = true;
-    end
+matobj = matfile([dataname,'.mat']);
+names = fieldnames(matobj);
+i = 1;
+n = max(size(names));
+while i <= n && ~strcmp(names{i,:},'Properties')
+    i = i+1;
 end
-S = S(I);
+I = (1:1:n);
+I = setdiff(I,i);
+names = names(I,1);
+names = sort(names);
+nt = max(size(names)); % number of trees/point clouds
 
 %% make the models
-nt = size(S,1); % number of trees/point clouds
-QSMs = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},'pmdistance',{},'triangulation',{});
+QSMs = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},...
+    'pmdistance',{},'triangulation',{});
 
 % Generate Inputs struct that contains the input parameters for each tree
 if max(size(inputs)) == 1
     clear Inputs
     for i = 1:nt
         Inputs(i) = inputs;
+        Inputs(i).name = names{i};
+        Inputs(i).tree = i;
+        Inputs(i).plot = 0;
+        Inputs(i).savetxt = 0;
+        Inputs(i).savemat = 0;
+        Inputs(i).disp = 0;
     end
 else
     Inputs = inputs;
@@ -107,22 +162,23 @@ end
 
 m = 1;
 for t = 1:nt % trees
-    P = eval(getfield(S(t),'name'));
-    str = getfield(S(t),'name');
-    j = 1;
+    disp(['Modelling tree ',num2str(t),'/',num2str(nt),':'])
+    P = matobj.(Inputs(t).name);
+    j = 1; % model number under generation, make "Nmodels" models per tree
     inputs = Inputs(t);
-    inputs.name = str;
-    inputs.tree = t;
-    inputs.plot = 0;
-    inputs.savetxt = 0;
-    inputs.savemat = 0;
-    inputs.disp = 1;
     while j <= Nmodels % generate N models per input
         k = 1;
-        n0 = 1;
+        n0 = 0;
         inputs.model = j;
         while k <= 5 % try up to five times to generate non-empty models
-            QSM = treeqsm(P,inputs);
+            try
+                QSM = treeqsm(P,inputs);
+            catch
+                QSM = struct('cylinder',{},'branch',{},'treedata',{},...
+                    'rundata',{},'pmdistance',{},'triangulation',{});
+                QSM(ninputs).treedata = 0;
+            end
+            
             n = max(size(QSM));
             Empty = false(n,1);
             for b = 1:n
@@ -130,11 +186,11 @@ for t = 1:nt % trees
                     Empty(b) = true;
                 end
             end
-            if any(Empty)
+            if n < ninputs || any(Empty)
                 n = nnz(~Empty);
                 k = k+1;
-                if n > n0
-                    qsm = QSM;
+                if n >= n0
+                    qsm = QSM(~Empty);
                     n0 = n;
                 end
             else
@@ -150,10 +206,6 @@ for t = 1:nt % trees
             m = m+n0;
         end
         j = j+1;
-        if j > 0 || floor(j/5) == ceil(j/5)
-            stri = ['results/',savename];
-            save(stri,'QSMs')
-        end
     end
     stri = ['results/',savename];
     save(stri,'QSMs')
