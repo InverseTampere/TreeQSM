@@ -19,10 +19,10 @@ function [cover,Base,Forb] = tree_sets(P,cover,inputs,segment)
 % TREE_SETS.M       Determines the base of the trunk and the cover sets 
 %                   belonging to the tree, updates the neighbor-relation
 %
-% Version 2.10
-% Latest update     16 Aug 2017
+% Version 2.1.0
+% Latest update     11 Oct 2019
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % Determines the cover sets that belong to the tree. Determines also the
@@ -31,7 +31,7 @@ function [cover,Base,Forb] = tree_sets(P,cover,inputs,segment)
 % single connected component. Optionally uses information from existing
 % segmentation to make sure that stem and 1st-, 2nd-, 3rd-order branches 
 % are properly connnected.
-%
+% ---------------------------------------------------------------------
 % Inputs:
 % P             Point cloud
 % cover         Cover sets, their centers and neighbors
@@ -44,7 +44,16 @@ function [cover,Base,Forb] = tree_sets(P,cover,inputs,segment)
 % cover     Cover sets with updated neigbors
 % Base      Base of the trunk (the cover sets forming the base)
 % Forb      Cover sets not part of the tree
+% ---------------------------------------------------------------------
 
+% Changes from version 2.0.0 to 2.1.0, 11 Oct 2019:  
+% 1) "define_main_branches": modified the size of neighborhood "balls0", 
+%    added seven lines of code, prevents possible error of too low or big 
+%    indexes on "Par"
+% 2) Increased the maximum base height from 0.5m to 1.5m
+% 3) "make_tree_connected": added at the end a call for the function itself,
+%    if the tree is not yet connected, thus running the function again if 
+%    necessary 
 
 %% Define auxiliar object
 clear aux
@@ -81,11 +90,9 @@ function [Base,Forb,cover] = define_base_forb(P,cover,aux,inputs,segment)
 % Defines the base of the stem and the forbidden sets (the sets containing
 % points not from the tree, i.e, ground, understory, etc.)
 Ce = aux.Ce;
-% Define the height of the base
-BaseHeight = min(0.5,0.025*aux.Height);
-
 if inputs.OnlyTree && nargin == 4
     % No ground in the point cloud, the base is the lowest part
+    BaseHeight = min(1.5,0.1*aux.Height);
     I = Ce(:,3) < aux.Hmin+BaseHeight;
     Base = aux.Ind(I);
     Forb = aux.Fal;
@@ -108,6 +115,7 @@ if inputs.OnlyTree && nargin == 4
 elseif inputs.OnlyTree
     % Select the stem sets from the previous segmentation and define the
     % base
+    BaseHeight = min(1.5,0.05*aux.Height);
     SoP = segment.SegmentOfPoint(cover.center);
     stem = aux.Ind(SoP == 1);
     I = Ce(stem,3) < aux.Hmin+BaseHeight;
@@ -237,6 +245,7 @@ else
     Trunk = union(Trunk,vertcat(Nei{Trunk}));
     Trunk = union(Trunk,TrunkBot);
     
+    BaseHeight = min(1.5,0.1*aux.Height);
     % Determine the base
     Bot = min(Ce(Trunk,3));
     J = Ce(Trunk,3) < Bot+BaseHeight;
@@ -283,7 +292,8 @@ Trunk = aux.Fal;
 Trunk(Base) = true;
 % Expand Trunk from the base above with neighbors as long as possible
 Exp = Base; % the current "top" of Trunk
-Exp = unique_elements([Exp; vertcat(Nei{Exp})],aux.Fal); % select the unique neighbors of Exp
+% select the unique neighbors of Exp
+Exp = unique_elements([Exp; vertcat(Nei{Exp})],aux.Fal); 
 I = Trunk(Exp);
 J = Forb(Exp);
 Exp = Exp(~I|~J); % Only non forbidden sets that are not already in Trunk
@@ -480,6 +490,7 @@ Trunk(MainBranches > 0) = true;
 [Par,CC] = cubical_partition(Ce,3*inputs.PatchDiam2Max,10);
 Sets = zeros(aux.nb,1,'uint32');
 BI = max(MainBranches);
+N = size(Par);
 for i = 1:BI
     if MainBranchIndexes(i)
         Branch = MainBranches == i; % The sets forming branch "i"
@@ -501,7 +512,13 @@ for i = 1:BI
                     NearSets = aux.Fal;
                     t = t+1;
                     for k = 1:m
-                        balls0 = Par(c(k,1)-t:c(k,1)+t,c(k,2)-t:c(k,2)+t,c(k,3)-t:c(k,3)+t);
+                        x1 = max(1,c(k,1)-t);
+                        x2 = min(c(k,1)+t,N(1));
+                        y1 = max(1,c(k,2)-t);
+                        y2 = min(c(k,2)+t,N(2));
+                        z1 = max(1,c(k,3)-t);
+                        z2 = min(c(k,3)+t,N(3));
+                        balls0 = Par(x1:x2,y1:y2,z1:z2);
                         if t == 1
                             balls = vertcat(balls0{:});
                         else
@@ -524,7 +541,7 @@ for i = 1:BI
                     NearSets = aux.Ind(NearSets);
                 end
                 
-                % Determine the closest sets for "trunk"
+                % Determine the closest sets for "comp"
                 if ~isempty(NearSets)
                     d = pdist2(Ce(comp,:),Ce(NearSets,:));
                     if NC == 1 && length(NearSets) == 1
@@ -563,6 +580,9 @@ Stem = aux.Ind(Stem);
 MainBranchIndexes = false(max(SegmentOfPoint),1);
 MainBranchIndexes(segment.branch1indexes) = true;
 BI = max(segment.branch1indexes);
+if isempty(BI)
+    BI = 0;
+end
 for i = 2:BI
     if MainBranchIndexes(i)
         Branch = MainBranches == i;
@@ -636,12 +656,12 @@ else
     % smaller ones are added to Forb, the size triples every round
 end
 
-
 % Determine the components of "Other"
 if any(Other)
     Comps = connected_components(Nei,Other,1,aux.Fal);
     nc = size(Comps,1);
     NonClassified = true(nc,1);
+    %plot_segs(P,Comps,6,1,cover.ball)
 else
     NonClassified = false;
 end
@@ -762,7 +782,7 @@ while any(NonClassified)
                         end
                                                 
                         % Determine what to do with the component
-                        if (dt > 3 && dt < 100) || (NC < Cmin && dt > 0.5 && dt < 10)
+                        if (dt > 8 && dt < 100) || (NC < Cmin && dt > 0.5 && dt < 10)
                             % Remove small isolated component
                             Forb(comp) = true;
                             Other(comp) = false;
@@ -804,5 +824,20 @@ end
 Forb(Base) = false;
 cover.neighbor = Nei;
 
+Nei = cover.neighbor;
+Trunk = aux.Fal;
+Trunk(Base) = true;
+Exp = Trunk;
+while any(Exp)
+    Exp(vertcat(Nei{Exp})) = true;
+    Exp(Trunk) = false;
+    Exp(Forb) = false;
+    Exp(Base) = false;
+    Trunk(Exp) = true;
+end
+
+if any(~Trunk)
+    [cover,Forb] = make_tree_connected(cover,aux,Forb,Base,Trunk,inputs);
+end
 end % End of function
 
