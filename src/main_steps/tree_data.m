@@ -18,10 +18,10 @@ function [treedata,triangulation] = tree_data(cylinder,branch,inputs,trunk,Disp)
 % ---------------------------------------------------------------------
 % TREE_DATA.M       Calculates some tree attributes from cylinder QSM. 
 %
-% Version 2.00
-% Latest update     16 Aug 2017
+% Version 2.0.1
+% Latest update     9 Oct 2019
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
 
 % Inputs:
@@ -39,6 +39,10 @@ function [treedata,triangulation] = tree_data(cylinder,branch,inputs,trunk,Disp)
 %
 % Output:
 % treedata     Tree data/attributes in a struct
+
+% Changes from version 2.0.0 to 2.0.1, 9 Oct 2019:  
+% 1) Bug fix: Changed the units (from 100m to 1m) for computing the branch 
+%    length distribution: branch length per branch order.
 
 % Define variables from CylData and BranchData
 Rad = cylinder.radius;
@@ -248,7 +252,7 @@ BranchOrdDistri = zeros(BO,3);
 for i = 1:BO
     I = BOrd == i;
     BranchOrdDistri(i,1) = sum(BVol(I)); % volumes
-    BranchOrdDistri(i,2) = sum(BLen(I))/100; % lengths
+    BranchOrdDistri(i,2) = sum(BLen(I)); % lengths
     BranchOrdDistri(i,3) = nnz(I); % number of ith-order branches
 end
 treedata.VolumeBranchOrder = BranchOrdDistri(:,1)';
