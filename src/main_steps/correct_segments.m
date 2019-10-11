@@ -18,10 +18,10 @@ function segment = correct_segments(P,cover,segment,inputs,RemSmall,ModBases,Add
 % ---------------------------------------------------------------------
 % CORRECT_SEGMENTS.M        Corrects the given segmentation.
 %
-% Version 2.20
-% Latest update     16 Aug 2017
+% Version 2.2.1
+% Latest update     2 Oct 2019
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
 
 % First segments are modified by making them as long as possible. Here the
@@ -35,19 +35,23 @@ function segment = correct_segments(P,cover,segment,inputs,RemSmall,ModBases,Add
 % parent from locations of the branches.
 
 % Inputs:
-% P         Point cloud
-% cover     Sover sets
-% segment   Segments
-% PatchDiam Minimum cover set diameter
-% RemSmall  True if small unclear segments are removed
-% ModBase   True if bases of the segments are modified
-% AddChild  True if the expanded (modified) base is added to the child segment.
+% P             Point cloud
+% cover         Cover sets
+% segment       Segments
+% PatchDiam     Minimum cover set diameter
+% RemSmall      If True, small unclear segments are removed
+% ModBase       If True, bases of the segments are modified
+% AddChild      If True, the expanded (modified) base is added to the child segment.
 %               If AddChild = false and ModBase = true, then the expanded part is
 %               removed from both the child and the parent.
 
 % Outputs:
 % segment       Segments
 % segmentP      Segments for points
+
+% Changes from version 2.2.0 to 2.0.1, 2 Oct 2019:  
+% 1) Main function: added "if SPar(i,1) > 1"-statement to ModBase -->
+%    NotAddChild
 
 if nargin == 4
     RemSmall = true;
@@ -101,10 +105,12 @@ if ModBases
     else
         % Only remove the expanded base from the parent
         for i = 2:ns
-            SegC = Segs{i};
-            SegP = Segs{SPar(i,1)};
-            SegP = modify_parent(P,Bal,Ce,SegP,SegC,SPar(i,2),inputs.PatchDiam2Max,base);
-            Segs{SPar(i,1)} = SegP;
+            if SPar(i,1) > 1
+                SegC = Segs{i};
+                SegP = Segs{SPar(i,1)};
+                SegP = modify_parent(P,Bal,Ce,SegP,SegC,SPar(i,2),inputs.PatchDiam2Max,base);
+                Segs{SPar(i,1)} = SegP;
+            end
         end
     end
 end
@@ -474,7 +480,6 @@ end % End subfunction
 function [Segs,SPar,SChi] = modify_topology(P,Ce,Bal,Segs,SPar,SChi,dmin)
 
 % Make stem and branches as long as possible
-%Ce = P(Cen,:);
 ns = size(Segs,1);
 Fal = false(2*ns,1);
 nc = ceil(ns/5);
