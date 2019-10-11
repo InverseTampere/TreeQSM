@@ -17,10 +17,10 @@ function [Rad,Len,Point,Axis,dist,conv,rel] = least_squares_cylinder(P,Point0,Ax
 % ---------------------------------------------------------------------
 % LEAST_SQUARES_CYLINDER.M   Least-squares cylinder using Gauss-Newton.
 %
-% Version 1.0
-% Latest update     16 Aug 2017
+% Version 1.1
+% Latest update     3 Oct 2019
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
 % Input    
 % P         Point cloud
@@ -39,6 +39,9 @@ function [Rad,Len,Point,Axis,dist,conv,rel] = least_squares_cylinder(P,Point0,Ax
 %               matrix inversion with a good enough condition number
 % ---------------------------------------------------------------------
 
+% Changes from version 1.0.0 to 1.1.0, 3 Oct 2019:  
+% 1) Bug fix: --> "Point = Rot0'*([par(1) par(2) 0]')..."
+
 
 % Transform the data to close to standard position via a rotation 
 % followed by a translation 
@@ -49,7 +52,7 @@ Pt = mat_vec_subtraction((P*Rot0'),Point1);
 % Initial estimates and tolerance information
 par = [0 0 0 0 Rad0]'; 
 
-% Gauss-Newton algorithm to find estimate of roto-translation 
+% Gauss-Newton algorithm to find estimate of rotation-translation 
 % parameters that transform the data so that the best-fit circle is 
 % one in standard position
 [par,dist,conv,rel] = nlssolver(par,Pt);
@@ -59,7 +62,7 @@ par = [0 0 0 0 Rad0]';
 Rad = par(5); % radius
 Rot = form_rotation_matrices(par(3:4));
 Axis = Rot0'*Rot'*[0 0 1]'; % axis direction
-Point = Rot*([par(1) par(2) 0]')+Point0';
+Point = Rot0'*([par(1) par(2) 0]')+Point0'; % axis point
 
 H = P*Axis;
 hmin = min(H);
