@@ -18,10 +18,10 @@ function cylinder = cylinders(P,cover,segment,inputs)
 % ---------------------------------------------------------------------
 % CYLINDERS.M       Fits cylinders to the branch-segments of the point cloud
 %
-% Version 2.00
-% Latest update     16 Aug 2017
+% Version 2.1.0
+% Latest update     3 Oct 2019
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
 
 % Reconstructs the surface and volume of branches of input tree with 
@@ -53,6 +53,16 @@ function cylinder = cylinders(P,cover,segment,inputs)
 %   UnModRadius (Rad0)  Unmodified radii
 %   CylsInSegment       Cylinders (indexes) in each branch, cell-array
 %   ChildCyls           Child cylinders of each cylinder, cell-array
+
+% Changes from version 2.0.0 to 2.1.0, 3 Oct 2019:
+% 1) Bug fix: UnmodRadius is now defined as it should, as the radius after
+%    least squares fitting but without parent, taper or growth vol. corrections
+% 2) Bug fix: Correction in "least_squares_cylinder.m", calculates the 
+%    starting point of the cylinder now correctly.
+% 3) Bug fix: Correct errors related to combining data when a fitted 
+%    cylinder is replaced with two shorter ones, in "cylinder_fitting" 
+% 4) Removed some unnecessary command lines for computing radius estimates
+%    in "regions"
 
 Segs = segment.segments;
 SPar = segment.ParentSegment;
@@ -142,6 +152,7 @@ for k = 1:NumOfSeg
             
             %% Adjust cylinders
             if nc > 0
+                cyl.rad0 = cyl.rad;
                 cyl = adjustments(Rad,Len,Sta,Axe,cyl,PC,si,inputs);
             end
             
@@ -300,13 +311,7 @@ if nl > 3
         end
         R = median2(d(I));
         if R == 0
-            R = average(d(I));
-            if R == 0
-                R = max(d(I));
-                if R == 0
-                    R = mad(d);
-                end
-            end
+            R = mad(d);
         end
         J = d < inputs.FilRad*R;
         I = I&J;
@@ -329,13 +334,7 @@ if nl > 3
             end
             R = median2(d(I));
             if R == 0
-                R = mean(d(I));
-                if R == 0
-                    R = max(d(I));
-                    if R == 0
-                        R = mad(d);
-                    end
-                end
+                R = mad(d);
             end
             J = d < inputs.FilRad*R;
             I = I&J;
@@ -349,13 +348,7 @@ if nl > 3
             I = h >= 0;
             R = median2(d(I));
             if R == 0
-                R = mean(d(I));
-                if R == 0
-                    R = max(d(I));
-                    if R == 0
-                        R = mad(d);
-                    end
-                end
+                R = mad(d);
             end
             J = d < inputs.FilRad*R;
             I = I&J;
@@ -465,7 +458,8 @@ warning off
 nr = size(Regs,1); % number of regions
 ci = 0; % cylinder index
 for j = 1:nr
-    if (length(Regs{j}) > 10) && (norm(cyl.axe0(j,:)) > 0) % fit cylinders to large enough subsegs
+    % fit cylinders to large enough subsegs
+    if (length(Regs{j}) > 10) && (norm(cyl.axe0(j,:)) > 0) 
         
         % Initial estimates
         Region = P(Regs{j},:);  % the coordinate points used for fitting
@@ -512,9 +506,11 @@ for j = 1:nr
                     if nnz(I) > 10 && nnz(~I) > 10
                         
                         % Fit cylinders
-                        [R1,L1,Point1,Axis1,d1,conv1,rel1] = least_squares_cylinder(Region1,Point,Axis,R);
+                        [R1,L1,Point1,Axis1,d1,conv1,rel1] = ...
+                            least_squares_cylinder(Region1,Point,Axis,R);
                         
-                        [R2,L2,Point2,Axis2,d2,conv2,rel2] = least_squares_cylinder(Region2,Point,Axis,R);
+                        [R2,L2,Point2,Axis2,d2,conv2,rel2] = ...
+                            least_squares_cylinder(Region2,Point,Axis,R);
                         
                         % Check if acceptable and also the best fits so far
                         if conv1 && rel1 && conv2 && rel2
@@ -525,7 +521,8 @@ for j = 1:nr
                             mad1 = average(abs(d1));
                             mad2 = average(abs(d2));
                             AcceptFits = mad1 < mad && mad2 < mad && (mad1+mad2)/2 < madb;
-                            AcceptFits = AcceptFits && abs(Axis*Axis1') > 0.8 && abs(Axis*Axis2') > 0.7;
+                            AcceptFits = AcceptFits && ...
+                                abs(Axis*Axis1') > 0.8 && abs(Axis*Axis2') > 0.7;
                             AcceptFits = AcceptFits && R1 < 1.33*R && R2 < 1.33*R;
                         else
                             AcceptFits = false;
@@ -564,9 +561,11 @@ for j = 1:nr
                             Region2 = Region2(I,:);
                             
                             % Fit again
-                            [R12,L1,Point1,Axis1,d1,conv1,rel1] = least_squares_cylinder(Region1,Point1,Axis1,R1);
+                            [R12,L1,Point1,Axis1,d1,conv1,rel1] = ...
+                                least_squares_cylinder(Region1,Point1,Axis1,R1);
                             
-                            [R22,L2,Point2,Axis2,d2,conv2,rel2] = least_squares_cylinder(Region2,Point2,Axis2,R2);
+                            [R22,L2,Point2,Axis2,d2,conv2,rel2] = ...
+                                least_squares_cylinder(Region2,Point2,Axis2,R2);
                             
                             % Update the best results if ok fits
                             if conv1 && rel1 && conv2 && rel2 && R12 < 1.1*R1 && R22 < 1.1*R2
@@ -630,11 +629,14 @@ for j = 1:nr
                 cyl.len(ci:ci+1,1) = L;
                 cyl.sta(ci:ci+1,:) = Point;
                 cyl.axe(ci:ci+1,:) = Axis;
-                cyl.sta0 = [cyl.sta0(1:ci,:); cyl.sta0(ci:end,:)];
-                cyl.sta0(ci+1,:) = cyl.sta0(ci,:)+cyl.len0(ci)/2*cyl.axe0(ci,:);
-                cyl.axe0 = [cyl.axe0(1:ci,:); cyl.axe0(ci:end,:)];
-                cyl.rad0 = [cyl.rad0(1:ci,:); cyl.rad0(ci:end,:)];
-                cyl.len0 = [cyl.len0(1:ci,:)/2; cyl.len0(ci:end,:)/2];
+                rad = cyl.rad0;  len = cyl.len0;
+                axe = cyl.axe0;  sta = cyl.sta0;
+                rad = [rad(1:ci-1); rad(ci,1); rad(ci,1); rad(ci+1:end)];
+                len = [len(1:ci-1); len(ci,1)/2; len(ci,1)/2; len(ci+1:end)];
+                axe = [axe(1:ci-1,:); axe(ci,:); axe(ci,:); axe(ci+1:end,:)];
+                sta = [sta(1:ci-1,:); sta(ci,:); sta(ci,:)+len(ci)*axe(ci,:); sta(ci+1:end,:)];
+                cyl.sta0 = sta;   cyl.len0 = len;
+                cyl.axe0 = axe;   cyl.rad0 = rad;
                 ci = ci+1;
             end
         else
@@ -648,25 +650,6 @@ for j = 1:nr
     end
 end
 warning on
-
-% if ci > 0 %nr-3
-%     figure(6)
-%     subplot(1,2,1)
-%     plot_segs(P,Regs,6,5)
-%     hold on
-%     for i = 1:ci
-%       draw(cyl.rad(i),cyl.len(i),cyl.axe(i,:),cyl.sta(i,:),1,20)
-%     end
-%     hold off
-%     subplot(1,2,2)
-%     plot_segs(P,Regs,6,5)
-%     hold on
-%     for i = 1:ci
-%       draw(cyl.rad0(i),cyl.len0(i),cyl.axe0(i,:),cyl.sta0(i,:),1,20)
-%     end
-%     hold off
-%     pause
-% end
 
 end % End of function
 
@@ -943,7 +926,7 @@ if SPar(si) > 0 % parent segment exists, find the parent cylinder
 else
     % no parent segment exists
     PC = zeros(0,1);
-    display('No parent segment')
+    disp('No parent segment')
 end
 
 Rads = Rads(1:nc);       
