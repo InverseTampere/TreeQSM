@@ -20,10 +20,10 @@ function QSM = treeqsm(P,inputs)
 % TREEQSM.M     Reconstructs quantitative structure tree models from point 
 %                   clouds containing a tree.
 %
-% Version 2.30
-% Latest update     16 Aug 2017
+% Version 2.3.1
+% Latest update     8 Oct 2019
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % INPUTS:
@@ -128,9 +128,11 @@ function QSM = treeqsm(P,inputs)
 % branch (structure-array) contains the following fields:
 % order     branch order (0 for trunk, 1 for branches originating from the trunk, etc.)
 % parent	index (in this file) of the parent branch
-% volume	volume of the branch in liters (sum of the volumes of the cylinders forming the branch)
+% volume	volume of the branch in liters (sum of the volumes of the 
+%               cylinders forming the branch)
 % length	length of the branch in meters (sum of the lengths of the cylinders)
-% angle     branching angle in degrees (angle between the branch and its parent at the branching point)
+% angle     branching angle in degrees (angle between the branch and its parent 
+%               at the branching point)
 % height    height of the base of the branch
 % azimuth   azimuth of the branch at the base in degrees
 % diameter  diameter of the branch at the base in meters
@@ -174,7 +176,8 @@ function QSM = treeqsm(P,inputs)
 % rundata (structure-array) contains the following fields:
 % inputs    The input parameters in a structure-array
 % time      Computation times for each step
-% date      Starting and stopping dates (year,month,day,hour,minute,second) of the computation
+% date      Starting and stopping dates (year,month,day,hour,minute,second) 
+%             of the computation
 % 
 % triangulation (structure-array) contains the following fields:
 % vert      Vertices (xyz-coordinates) of the triangulation
@@ -186,6 +189,11 @@ function QSM = treeqsm(P,inputs)
 % triah     Height of the triangles
 % triah     Width of the triangles
 % cylind    Cylinder index in the stem where the triangulation stops
+
+% Changes from version 2.3.0 to 2.3.1, 8 Oct 2019:  
+% 1) Some changes in the subfunctions, particularly in "cylinders" and "tree_sets"
+% 2) Changed how "treeqsm" displays things during the running of the
+%    function
 
 %% Code starts -->
 Time = zeros(11,1); % Save computation times for modelling steps
@@ -201,7 +209,7 @@ name = ['Cover sets      ';
         'Distances       '];
     
 disp('---------------')
-disp([inputs.name,', Tree = ',num2str(inputs.tree),', Model = ',num2str(inputs.model)])
+disp(['  ',inputs.name,', Tree = ',num2str(inputs.tree),', Model = ',num2str(inputs.model)])
 
 % Input parameters
 PatchDiam1 = inputs.PatchDiam1;
@@ -218,17 +226,17 @@ nl = length(lcyl);
 nf = length(FilRad);
 
 if inputs.disp == 2
-    % Display parameter values
-    str = ['PatchDiam1 = ',num2str(PatchDiam1),', BallRad1 = ',num2str(BallRad1),...
-        ', nmin1 = ',num2str(inputs.nmin1)];
-    disp(str)
-    str = ['PatchDiam2Min = ',num2str(PatchDiam2Min),', PatchDiam2Max = ',...
-        num2str(PatchDiam2Max),', BallRad2 = ',num2str(BallRad2),', nmin2 = ',num2str(inputs.nmin2)'];
-    disp(str)
-    str = ['lcyl = ',num2str(lcyl),', FilRad = ',num2str(FilRad),...
-        ', Tria = ',num2str(inputs.Tria),', OnlyTree = ',num2str(inputs.OnlyTree)];
-    disp(str)
-    disp('Progress:')
+  % Display parameter values
+  disp(['  PatchDiam1 = ',num2str(PatchDiam1)])
+  disp(['  BallRad1 = ',num2str(BallRad1)])
+  disp(['  PatchDiam2Min = ',num2str(PatchDiam2Min)])
+  disp(['  PatchDiam2Max = ',num2str(PatchDiam2Max)])
+  disp(['  BallRad2 = ',num2str(BallRad2)])
+  disp(['  lcyl = ',num2str(lcyl)])
+  disp(['  FilRad = ',num2str(FilRad)])
+  disp(['  nmin1 = ',num2str(inputs.nmin1),',  nmin2 = ',num2str(inputs.nmin2)])
+  disp(['  Tria = ',num2str(inputs.Tria),', OnlyTree = ',num2str(inputs.OnlyTree)])
+  disp('Progress:')
 end
 
 %% Make the point cloud into proper form
@@ -243,214 +251,238 @@ end
 
 %% Initialize the output file
 clear QSM
-QSM = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},'pmdistance',{},'triangulation',{});
+QSM = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},...
+    'pmdistance',{},'triangulation',{});
 
 %% Reconstruct QSMs
 nmodel = 0;
 for h = 1:nd
-    tic
-    Inputs = inputs;
-    Inputs.PatchDiam1 = PatchDiam1(h);
-    Inputs.BallRad1 = BallRad1(h);
-    if nd > 1 && inputs.disp >= 1
-        disp(['  PatchDiam1 = ',num2str(PatchDiam1(h))]);
+  tic
+  Inputs = inputs;
+  Inputs.PatchDiam1 = PatchDiam1(h);
+  Inputs.BallRad1 = BallRad1(h);
+  if nd > 1 && inputs.disp >= 1
+    disp('  -----------------')
+    disp(['  PatchDiam1 = ',num2str(PatchDiam1(h))]);
+    disp('  -----------------')
+  end
+  
+  %% Generate cover sets
+  cover1 = cover_sets(P,Inputs);
+  Time(1) = toc;
+  if inputs.disp == 2
+    display_time(Time(1),Time(1),name(1,:),1)
+  end
+  
+  %% Determine tree sets and update neighbors
+  [cover1,Base,Forb] = tree_sets(P,cover1,Inputs);
+  Time(2) = toc-Time(1);
+  if inputs.disp == 2
+    display_time(Time(2),sum(Time(1:2)),name(2,:),1)
+  end
+  
+  %% Determine initial segments
+  segment1 = segments(cover1,Base,Forb);
+  Time(3) = toc-sum(Time(1:2));
+  if inputs.disp == 2
+    display_time(Time(3),sum(Time(1:3)),name(3,:),1)
+  end
+  
+  %% Correct segments
+  % Don't remove small segments and add the modified base to the segment
+  segment1 = correct_segments(P,cover1,segment1,Inputs,0,1,1);
+  Time(4) = toc-sum(Time(1:3));
+  if inputs.disp == 2
+    display_time(Time(4),sum(Time(1:4)),name(4,:),1)
+  end
+  
+  for i = 1:na
+    % Modify inputs
+    Inputs.PatchDiam2Max = PatchDiam2Max(i);
+    Inputs.BallRad2 = BallRad2(i);
+    if na > 1 && inputs.disp >= 1
+      disp('    -----------------')
+      disp(['    PatchDiam2Max = ',num2str(PatchDiam2Max(i))]);
+      disp('    -----------------')
     end
-    
-    %% Generate cover sets
-    cover1 = cover_sets(P,Inputs);
-    Time(1) = toc;
-    if inputs.disp == 2
-        display_time(Time(1),Time(1),name(1,:),1)
-    end
-    
-    %% Determine tree sets and update neighbors
-    [cover1,Base,Forb] = tree_sets(P,cover1,Inputs);
-    Time(2) = toc-Time(1);
-    if inputs.disp == 2
-        display_time(Time(2),sum(Time(1:2)),name(2,:),1)
-    end
-    
-    %% Determine initial segments
-    segment1 = segments(cover1,Base,Forb);
-    Time(3) = toc-sum(Time(1:2));
-    if inputs.disp == 2
-        display_time(Time(3),sum(Time(1:3)),name(3,:),1)
-    end
-    
-    %% Correct segments
-    % Don't remove small segments and add the modified base to the segment
-    segment1 = correct_segments(P,cover1,segment1,Inputs,0,1,1);
-    Time(4) = toc-sum(Time(1:3));
-    if inputs.disp == 2
-        display_time(Time(4),sum(Time(1:4)),name(4,:),1)
-    end
-    
-    for i = 1:na
-        % Modify inputs
-        Inputs.PatchDiam2Max = PatchDiam2Max(i);
-        Inputs.BallRad2 = BallRad2(i);
-        if na > 1 && inputs.disp >= 1
-            disp(['  PatchDiam2Max = ',num2str(PatchDiam2Max(i))]);
-        end
-        for j = 1:ni
-            tic
-            % Modify inputs
-            Inputs.PatchDiam2Min = PatchDiam2Min(j);
-            if ni > 1 && inputs.disp >= 1
-                disp(['  PatchDiam2Min = ',num2str(PatchDiam2Min(j))]);
-            end
+    for j = 1:ni
+      tic
+      % Modify inputs
+      Inputs.PatchDiam2Min = PatchDiam2Min(j);
+      if ni > 1 && inputs.disp >= 1
+        disp('      -----------------')
+        disp(['      PatchDiam2Min = ',num2str(PatchDiam2Min(j))]);
+        disp('      -----------------')
+      end
+      
+      %% Generate new cover sets
+      % Determine relative size of new cover sets and use only tree points
+      RS = relative_size(P,cover1,segment1);
+      
+      % Generate new cover
+      cover2 = cover_sets(P,Inputs,RS);
+      Time(5) = toc;
+      if inputs.disp == 2
+          display_time(Time(5),sum(Time(1:5)),name(1,:),1)
+      end
+      
+      %% Determine tree sets and update neighbors
+      [cover2,Base,Forb] = tree_sets(P,cover2,Inputs,segment1);
+      Time(6) = toc-Time(5);
+      if inputs.disp == 2
+        display_time(Time(6),sum(Time(1:6)),name(2,:),1)
+      end
+      
+      %% Determine segments
+      segment2 = segments(cover2,Base,Forb);
+      Time(7) = toc-sum(Time(5:6));
+      if inputs.disp == 2
+        display_time(Time(7),sum(Time(1:7)),name(3,:),1)
+      end
+      
+      %% Correct segments
+      % Remove small segments and the extended bases.
+      segment2 = correct_segments(P,cover2,segment2,Inputs,1,1,0);
+      Time(8) = toc-sum(Time(5:7));
+      if inputs.disp == 2
+        display_time(Time(8),sum(Time(1:8)),name(4,:),1)
+      end
+      
+      for k = 1:nl
+        for l = 1:nf
+          tic
+          % Modify inputs for specific lcyl and FilRad-values
+          Inputs.lcyl = lcyl(k);
+          Inputs.FilRad = FilRad(l);
+          if (nl > 1 || nf > 1) && inputs.disp >= 1
+            disp('        -----------------')
+            disp(['        lcyl = ',num2str(lcyl(k)),...
+                ', FilRad = ',num2str(FilRad(l))]);
+            disp('        -----------------')
+          end
+          
+          %% Define cylinders
+          cylinder = cylinders(P,cover2,segment2,Inputs);
+          Time(9) = toc;
+          if inputs.disp == 2
+            display_time(Time(9),sum(Time(1:9)),name(5,:),1)
+          end
+          
+          if ~isempty(cylinder.radius)
+            %% Determine the branches
+            [branch,cylinder] = branches(segment2,cylinder);
             
-            %% Generate new cover sets
-            % Determine relative size of new cover sets and use only tree points
-            RS = relative_size(P,cover1,segment1);
-            
-            % Generate new cover
-            cover2 = cover_sets(P,Inputs,RS);
-            Time(5) = toc;
+            %% Compute and display model attributes
+            T = segment2.segments{1};
+            T = vertcat(T{:});
+            T = vertcat(cover2.ball{T});
+            trunk = P(T,:); % point cloud of the trunk
             if inputs.disp == 2
-                display_time(Time(5),sum(Time(1:5)),name(1,:),1)
+              dis = 1;
+            else
+              dis = 0;
             end
-            
-            %% Determine tree sets and update neighbors
-            [cover2,Base,Forb] = tree_sets(P,cover2,Inputs,segment1);
-            Time(6) = toc-Time(5);
+            % Compute attributes and distibutions from the cylinder model
+            % and possibly some from a triangulation
+            [treedata,triangulation] = tree_data(cylinder,branch,inputs,trunk,dis);
+            Time(10) = toc-Time(9);
             if inputs.disp == 2
-                display_time(Time(6),sum(Time(1:6)),name(2,:),1)
+              display_time(Time(10),sum(Time(1:10)),name(6,:),1)
             end
             
-            %% Determine segments
-            segment2 = segments(cover2,Base,Forb);
-            Time(7) = toc-sum(Time(5:6));
-            if inputs.disp == 2
-                display_time(Time(7),sum(Time(1:7)),name(3,:),1)
+            %% Compute point model distances
+            if inputs.Dist
+              pmdis = point_model_distance(P,cylinder);
+              D = [pmdis.TrunkMean pmdis.BranchMean ...
+                  pmdis.Branch1Mean pmdis.Branch2Mean];
+              D = round(10000*D)/10;
+              if inputs.disp >= 0
+                disp('  ----------')
+                str = ['  PatchDiam1 = ',num2str(PatchDiam1(h)), ...
+                    ', PatchDiam2Max = ',num2str(PatchDiam2Max(i)), ...
+                    ', PatchDiam2Min = ',num2str(PatchDiam2Min(j)), ...
+                    ', lcyl = ',num2str(lcyl(k)),', FilRad = ',num2str(FilRad(l))];
+                disp(str)
+                str = ['  Average cylinder-point distance ',...
+                    '(trunk, branch, 1branch, 2branch):  '...
+                    num2str(D(1)),'  ',num2str(D(2)),'  ',...
+                    num2str(D(3)),'  ',num2str(D(4)),' mm'];
+                disp(str)
+                disp('  ----------')
+              end
+              Time(11) = toc-sum(Time(9:10));
+              if inputs.disp == 2
+                  display_time(Time(11),sum(Time(1:11)),name(7,:),1)
+              end
             end
+            disp('----------------------------------')
             
-            %% Correct segments
-            % Remove small segments and the extended bases.
-            segment2 = correct_segments(P,cover2,segment2,Inputs,1,1,0);
-            Time(8) = toc-sum(Time(5:7));
-            if inputs.disp == 2
-                display_time(Time(8),sum(Time(1:8)),name(4,:),1)
+            %% Reconstruct the output "QSM"
+            Date(2,:) = clock;
+            Time(12) = sum(Time(1:11));
+            clear qsm
+            qsm = struct('cylinder',{},'branch',{},'treedata',{},...
+                'rundata',{},'pmdistance',{},'triangulation',{});
+            qsm(1).cylinder = cylinder;
+            qsm(1).branch = branch;
+            qsm(1).treedata = treedata;
+            qsm(1).rundata.inputs = Inputs;
+            qsm(1).rundata.time = single(Time);
+            qsm(1).rundata.date = single(Date);
+            if inputs.Dist
+              qsm(1).pmdistance = pmdis;
             end
+            if inputs.Tria
+              qsm(1).triangulation = triangulation;
+            end
+            nmodel = nmodel+1;
+            QSM(nmodel) = qsm;
             
-            for k = 1:nl
-                for l = 1:nf
-                    tic
-                    % Modify inputs for specific lcyl and FilRad-values
-                    Inputs.lcyl = lcyl(k);
-                    Inputs.FilRad = FilRad(l);
-                    if (nl > 1 || nf > 1) && inputs.disp >= 1
-                        disp(['  lcyl = ',num2str(lcyl(k)),', FilRad = ',num2str(FilRad(l))]);
-                    end
-                    
-                    %% Define cylinders
-                    cylinder = cylinders(P,cover2,segment2,Inputs);
-                    Time(9) = toc;
-                    if inputs.disp == 2
-                        display_time(Time(9),sum(Time(1:9)),name(5,:),1)
-                    end
-                    
-                    if ~isempty(cylinder.radius)
-                        %% Determine the branches
-                        [branch,cylinder] = branches(segment2,cylinder);
-                        
-                        %% Compute and display model attributes
-                        T = segment2.segments{1};
-                        T = vertcat(T{:});
-                        T = vertcat(cover2.ball{T});
-                        trunk = P(T,:); % point cloud of the trunk
-                        if inputs.disp == 2
-                            dis = 1;
-                        else
-                            dis = 0;
-                        end
-                        % Compute attributes and distibutions from the cylinder model 
-                        % and possibly some from a triangulation
-                        [treedata,triangulation] = tree_data(cylinder,branch,inputs,trunk,dis);
-                        Time(10) = toc-Time(9);
-                        if inputs.disp == 2
-                            display_time(Time(10),sum(Time(1:10)),name(6,:),1)
-                        end
-                        
-                        %% Compute point model distances
-                        if inputs.Dist
-                            pmdis = point_model_distance(P,cylinder);
-                            D = [pmdis.TrunkMean pmdis.BranchMean pmdis.Branch1Mean pmdis.Branch2Mean];
-                            D = round(10000*D)/10;
-                            if inputs.disp >= 1
-                                disp(['    Average cylinder-point distance:   ',num2str(D),' mm'])
-                            end
-                            Time(11) = toc-sum(Time(9:10));
-                            if inputs.disp == 2
-                                display_time(Time(11),sum(Time(1:11)),name(7,:),1)
-                            end
-                        end
-                        
-                        %% Reconstruct the output "QSM"
-                        Date(2,:) = clock;
-                        Time(12) = sum(Time(1:11));
-                        clear qsm
-                        qsm = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},'pmdistance',{},'triangulation',{});
-                        qsm(1).cylinder = cylinder;
-                        qsm(1).branch = branch;
-                        qsm(1).treedata = treedata;
-                        qsm(1).rundata.inputs = Inputs;
-                        qsm(1).rundata.time = single(Time);
-                        qsm(1).rundata.date = single(Date);
-                        if inputs.Dist
-                            qsm(1).pmdistance = pmdis;
-                        end
-                        if inputs.Tria
-                            qsm(1).triangulation = triangulation;
-                        end
-                        nmodel = nmodel+1;
-                        QSM(nmodel) = qsm;
-                        
-                        %% Save the output into results-folder
-                        % matlab-format (.mat)
-                        if inputs.savemat
-                            str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
-                            save(['results/QSM_',str],'QSM')
-                        end
-                        % text-format (.txt)
-                        if inputs.savetxt
-                            if nd > 1 || na > 1 || ni > 1 || nl > 1 || nf > 1
-                                str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
-                                if nd > 1
-                                    str = [str,'_D',num2str(PatchDiam1(h))];
-                                end
-                                if na > 1
-                                    str = [str,'_DA',num2str(PatchDiam2Max(i))];
-                                end
-                                if ni > 1
-                                    str = [str,'_DI',num2str(PatchDiam2Min(j))];
-                                end
-                                if nl > 1
-                                    str = [str,'_L',num2str(lcyl(k))];
-                                end
-                                if nf > 1
-                                    str = [str,'_F',num2str(FilRad(l))];
-                                end
-                            else
-                                str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
-                            end
-                            save_model_text(qsm,str)
-                        end
-                        
-                        %% Plot models and segmentations
-                        if inputs.plot
-                            if inputs.Tria
-                                plot_models_segmentations(P,cover2,segment2,cylinder,trunk,triangulation)
-                            else
-                                plot_models_segmentations(P,cover2,segment2,cylinder)
-                            end
-                            if nd > 1 || na > 1 || ni > 1 || nl > 1 || nf > 1
-                                pause
-                            end
-                        end
-                    end
+            %% Save the output into results-folder
+            % matlab-format (.mat)
+            if inputs.savemat
+              str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
+              save(['results/QSM_',str],'QSM')
+            end
+            % text-format (.txt)
+            if inputs.savetxt
+              if nd > 1 || na > 1 || ni > 1 || nl > 1 || nf > 1
+                str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
+                if nd > 1
+                  str = [str,'_D',num2str(PatchDiam1(h))];
                 end
+                if na > 1
+                  str = [str,'_DA',num2str(PatchDiam2Max(i))];
+                end
+                if ni > 1
+                  str = [str,'_DI',num2str(PatchDiam2Min(j))];
+                end
+                if nl > 1
+                  str = [str,'_L',num2str(lcyl(k))];
+                end
+                if nf > 1
+                  str = [str,'_F',num2str(FilRad(l))];
+                end
+              else
+                str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
+              end
+              save_model_text(qsm,str)
             end
+            
+            %% Plot models and segmentations
+            if inputs.plot
+              if inputs.Tria
+                plot_models_segmentations(P,cover2,segment2,cylinder,trunk,triangulation)
+              else
+                plot_models_segmentations(P,cover2,segment2,cylinder)
+              end
+              if nd > 1 || na > 1 || ni > 1 || nl > 1 || nf > 1
+                pause(1)
+              end
+            end
+          end
         end
+      end
     end
+  end
 end
