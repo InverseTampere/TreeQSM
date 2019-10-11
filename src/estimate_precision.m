@@ -15,6 +15,17 @@
 
 function [TreeData,OptQSMs,OptQSM] = estimate_precision(QSMs,NewQSMs,OptModels,savename)
 
+% ---------------------------------------------------------------------
+% ESTIMATE_PRECISION.M      Combines additional QSMs with optimal inputs
+%                             with previously generated QSMs to estimate the 
+%                             precision (standard deviation) better. 
+%
+% Version 1.0.1
+% Latest update     08 Oct 2019
+%
+% Copyright (C) 2016-2019 Pasi Raumonen
+% ---------------------------------------------------------------------
+
 % Uses models with the same inputs to estimate the precision (standard
 % deviation) of the results. Has two sets of models as its inputs: 
 % 1) QSMs can contain models with many different input parameters for each tree 
@@ -22,9 +33,9 @@ function [TreeData,OptQSMs,OptQSM] = estimate_precision(QSMs,NewQSMs,OptModels,s
 % models"); 2) NewQSMs contains only models with the optimal inputs.
 %
 % Inputs:
-% QSMs          Contain all the QSMs, possibly from multiple trees
+% QSMs          Contain all the models, possibly from multiple trees
 % NewQSMs       Contains the additional models with optimal inputs, for all trees
-% OptModels     Indexes of the optimal models for each tree in QSMs
+% OptModels     Indexes of the optimal models for each tree in "QSMs"
 % savename      Optional input, name string specifying the name of the saved
 %                   file containing the outputs
 % Outputs:
@@ -34,6 +45,9 @@ function [TreeData,OptQSMs,OptQSM] = estimate_precision(QSMs,NewQSMs,OptModels,s
 % OptQSMs       Contains all the models with the optimal inputs, for all trees
 % OptQSM        The best model (minimum point-model distance) among the models 
 %                   with the optimal inputs, for all trees
+
+% Changes from version 1.0.0 to 1.0.1, 08 Oct 2019:
+% 1) Small change for how the output "TreeData" is initialised
 
 %% Reconstruct the outputs 
 OptQSMs = QSMs(vertcat(OptModels{:,1})); % Optimal models from the optimization process
@@ -113,7 +127,7 @@ end
 
 %% Generate TreeData sructure for optimal models
 clear TreeData
-TreeData = OptQSM.treedata;
+TreeData = vertcat(OptQSM(:).treedata);
 for t = 1:nt
     for i = 1:n
         TreeData(t).(names{i}) = [DataM(i,t) DataS(i,t)];
