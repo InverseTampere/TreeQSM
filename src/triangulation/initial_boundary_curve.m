@@ -18,11 +18,14 @@ function Curve = initial_boundary_curve(P,TriaWidth)
 % ---------------------------------------------------------------------
 % INITIAL_BOUNDARY_CURVE.M      Determines the boundary curve adaptively.
 %
-% Version 1.0
-% Latest update     16 Aug 2017
+% Version 1.0.1
+% Latest update     26 Nov 2019
 %
 % Copyright (C) 2015-2017 Pasi Raumonen
 % ---------------------------------------------------------------------
+
+% Changes from version 1.0.0 to 1.0.1, 26 Nov 2019:
+% 1) Bug fix: Added "return" if the "Curve" is empty after it is first defined.
 
 %% Define suitable center
 % Use xy-data and even the z-coordinate to the top 
@@ -90,6 +93,9 @@ for i = 2:18
     end
 end
 Curve = Curve(1:t);
+if isempty(Curve)
+    return
+end
 I = true(np,1);
 I(Curve) = false;
 Ind = Ind(I);
