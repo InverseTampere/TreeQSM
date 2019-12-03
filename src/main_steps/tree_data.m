@@ -18,8 +18,8 @@ function [treedata,triangulation] = tree_data(cylinder,branch,inputs,trunk,Disp)
 % ---------------------------------------------------------------------
 % TREE_DATA.M       Calculates some tree attributes from cylinder QSM. 
 %
-% Version 2.0.1
-% Latest update     9 Oct 2019
+% Version 2.0.2
+% Latest update     26 Nov 2019
 %
 % Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
@@ -39,10 +39,21 @@ function [treedata,triangulation] = tree_data(cylinder,branch,inputs,trunk,Disp)
 %
 % Output:
 % treedata     Tree data/attributes in a struct
+% ---------------------------------------------------------------------
+
+% Changes from version 2.0.1 to 2.0.2, 26 Nov 2019:  
+% 1) Bug fix: Added a statement "C < nc" for a while command that makes sure 
+%    that the index "C" does not exceed the number of stem cylinders, when 
+%    determining the index of cylinders up to first branch.
+% 2) Bug fix: Changed "for i = 1:BO" to "for i = 1:max(1,BO)" where 
+%    computing branch order data.
+% 3) Added the plotting of the triangulation model
 
 % Changes from version 2.0.0 to 2.0.1, 9 Oct 2019:  
 % 1) Bug fix: Changed the units (from 100m to 1m) for computing the branch 
 %    length distribution: branch length per branch order.
+
+
 
 % Define variables from CylData and BranchData
 Rad = cylinder.radius;
@@ -113,7 +124,7 @@ end
 %% Trunk volume and DBH from triangulation
 % Determine suitable cylinders up to first branch
 C = 1;
-while cylinder.branch(C) == 1
+while C < nc && cylinder.branch(C) == 1% && Rad(C) > 0.75*Rad(1)
     C = C+1;
 end
 
@@ -180,6 +191,19 @@ if inputs.Tria
             treedata.MixTrunkVolume = TrunkVolMix;
             treedata.MixTotalVolume = TrunkVolMix+treedata.BranchVolume;
             treedata.TriaTrunkLength = TrunkLenTri;
+            
+            if Disp
+                figure(5)
+                Vert = triangulation.vert;
+                Tria = triangulation.facet;
+                fvd = triangulation.fvd;
+                plot3(Vert(1,1),Vert(1,2),Vert(1,3))
+                point_cloud_plotting(trunk,5,6)
+                patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
+                axis equal
+                alpha(0.8)
+                pause(0.01)
+            end
         else
             treedata.DBHtri = DBHqsm;
             treedata.TriaTrunkVolume = treedata.TrunkVolume;
@@ -249,7 +273,7 @@ treedata.LengthCylDiam = PartSizeDistri(:,2)';
 
 %% Branch order data
 BranchOrdDistri = zeros(BO,3);
-for i = 1:BO
+for i = 1:max(1,BO)
     I = BOrd == i;
     BranchOrdDistri(i,1) = sum(BVol(I)); % volumes
     BranchOrdDistri(i,2) = sum(BLen(I)); % lengths
