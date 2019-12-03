@@ -19,8 +19,8 @@ function [TreeData,OptModels,OptInputs,OptQSM] = select_optimum(QSMs,Metric,save
 % SELECT_OPTIMUM.M       Selects optimum models based on point-cylinder model 
 %                           distances or standard deviations of attributes
 %
-% Version 1.1.0
-% Latest update     08 Oct 2019
+% Version 1.1.1
+% Latest update     26 Nov 2019
 %
 % Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
@@ -97,6 +97,13 @@ function [TreeData,OptModels,OptInputs,OptQSM] = select_optimum(QSMs,Metric,save
 % OptInputs     The optimized input parameters for each tree
 % OptQSMs       The single best QSM for each tree, OptQSMs = QSMs(OptModel);
 % ---------------------------------------------------------------------
+
+% Changes from version 1.1.0 to 1.1.1, 26 Nov 2019:
+% 1) Added the "name" of the point cloud from the inputs.name to the output
+%    TreeData as a field. Also now displays the name together with the tree
+%    number.
+% 2) TreeData contains now correctly fields ("location", "StemTaper", 
+%    "VolumeBranchOrder", etc) from the Optimal QSMs.
 
 % Changes from version 1.0.0 to 1.1.0, 08 Oct 2019:
 % 1) Added the posibility to select the optimisation criteria or cost
@@ -565,11 +572,12 @@ end
 
 %% Generate TreeData sructure for optimal models
 clear TreeData
-TreeData = OptQSM.treedata;
+TreeData = vertcat(OptQSM(:).treedata);
 for t = 1:nt
     for i = 1:n
         TreeData(t).(names{i}) = [DataM(i,t) DataS(i,t)];
     end
+    TreeData(t).name = OptInputs(t).name;
 end
 
 %% Save results
