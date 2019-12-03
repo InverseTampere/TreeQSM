@@ -20,8 +20,8 @@ function [TreeData,OptQSMs,OptQSM] = estimate_precision(QSMs,NewQSMs,OptModels,s
 %                             with previously generated QSMs to estimate the 
 %                             precision (standard deviation) better. 
 %
-% Version 1.0.1
-% Latest update     08 Oct 2019
+% Version 1.0.2
+% Latest update     26 Nov 2019
 %
 % Copyright (C) 2016-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
@@ -45,9 +45,16 @@ function [TreeData,OptQSMs,OptQSM] = estimate_precision(QSMs,NewQSMs,OptModels,s
 % OptQSMs       Contains all the models with the optimal inputs, for all trees
 % OptQSM        The best model (minimum point-model distance) among the models 
 %                   with the optimal inputs, for all trees
+% ---------------------------------------------------------------------
+
+% Changes from version 1.0.1 to 1.0.2, 26 Nov 2019:
+% 1) Added the "name" of the point cloud from the inputs.name to the output
+%    TreeData as a field. Also now displays the name together with the tree
+%    number.
 
 % Changes from version 1.0.0 to 1.0.1, 08 Oct 2019:
 % 1) Small change for how the output "TreeData" is initialised
+
 
 %% Reconstruct the outputs 
 OptQSMs = QSMs(vertcat(OptModels{:,1})); % Optimal models from the optimization process
@@ -116,7 +123,7 @@ end
 
 % Display optimal inputs, model and attributes for each tree
 for t = 1:nt
-    disp(['  Tree: ',num2str(t)])
+    disp(['  Tree: ',num2str(t),', ',OptQSM(t).rundata.inputs.name])
     disp('    Attributes (mean, std, CV(%)):')
     for i = 1:n
         str = (['     ',names{i},': ',num2str([DataM(i,t) DataS(i,t) DataCV(i,t)])]);
@@ -132,6 +139,7 @@ for t = 1:nt
     for i = 1:n
         TreeData(t).(names{i}) = [DataM(i,t) DataS(i,t)];
     end
+    TreeData(t).name = OptQSM(t).rundata.inputs.name;
 end
 
 %% Save results
