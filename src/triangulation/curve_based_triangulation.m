@@ -19,8 +19,8 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 % CURVE_BASED_TRIANGULATION.M   Reconstructs a triangulation for the
 %                               stem-buttress surface based on boundary curves
 %
-% Version 1.0
-% Latest update     16 Aug 2017
+% Version 1.0.1
+% Latest update     26 Nov 2019
 %
 % Copyright (C) 2015-2017 Pasi Raumonen
 % ---------------------------------------------------------------------
@@ -41,6 +41,10 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 %   top             The z-coordinate of the top of the model
 %   triah           TriaHeight
 %   triaw           TriaWidth
+% ---------------------------------------------------------------------
+
+% Changes from version 1.0.0 to 1.0.1, 26 Nov 2019:  
+% 1) Removed the plotting of the triangulation model at the end of the code
 
 %% Determine the first boundary curve
 np = size(P,1);
@@ -480,12 +484,11 @@ triangulation.bottom = min(Vert(:,3));
 triangulation.top = max(Vert(:,3));
 triangulation.triah = TriaHeight;
 triangulation.triaw = TriaWidth;
-%fvd = TriaLay;
 
-figure(5)
-plot3(Vert(1,1),Vert(1,2),Vert(1,3))
-point_cloud_plotting(P,5,6)
-patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
-axis equal
-alpha(0.8)
-pause(0.01)
+% figure(5)
+% plot3(Vert(1,1),Vert(1,2),Vert(1,3))
+% point_cloud_plotting(P,5,6)
+% patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
+% axis equal
+% alpha(0.8)
+% pause(0.01)
