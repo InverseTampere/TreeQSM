@@ -20,8 +20,8 @@ function QSM = treeqsm(P,inputs)
 % TREEQSM.M     Reconstructs quantitative structure tree models from point 
 %                   clouds containing a tree.
 %
-% Version 2.3.1
-% Latest update     8 Oct 2019
+% Version 2.3.2
+% Latest update     2 Oct 2019
 %
 % Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
@@ -189,11 +189,17 @@ function QSM = treeqsm(P,inputs)
 % triah     Height of the triangles
 % triah     Width of the triangles
 % cylind    Cylinder index in the stem where the triangulation stops
+% ---------------------------------------------------------------------
+
+% Changes from version 2.3.1 to 2.3.2, 2 Dec 2019:  
+% Small changes in the subfunction to allow trees without branches
 
 % Changes from version 2.3.0 to 2.3.1, 8 Oct 2019:  
 % 1) Some changes in the subfunctions, particularly in "cylinders" and "tree_sets"
 % 2) Changed how "treeqsm" displays things during the running of the
 %    function
+
+
 
 %% Code starts -->
 Time = zeros(11,1); % Save computation times for modelling steps
@@ -477,7 +483,7 @@ for h = 1:nd
                 plot_models_segmentations(P,cover2,segment2,cylinder)
               end
               if nd > 1 || na > 1 || ni > 1 || nl > 1 || nf > 1
-                pause(1)
+                pause
               end
             end
           end
