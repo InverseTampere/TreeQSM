@@ -19,11 +19,15 @@ function pmdistance = point_model_distance(P,cylinder)
 % POINT_MODEL_DISTANCE.M    Computes the distances of the points to the 
 %                               cylinder model
 %
-% Version 2.00
-% Latest update     16 Aug 2017
+% Version 2.1.0
+% Latest update     26 Nov 2019
 %
 % Copyright (C) 2015-2017 Pasi Raumonen
 % ---------------------------------------------------------------------
+
+% Changes from version 2.0.0 to 2.1.0, 26 Nov 2019:  
+% 1) Bug fix: Corrected the computation of the output at the end of the
+%    code so that trees without branches are computed correctly.
 
 % Cylinder data
 Rad = cylinder.radius;
@@ -157,18 +161,9 @@ pmdistance.mean = mean(DistCyl(:,1));
 pmdistance.max = max(DistCyl(:,1));
 pmdistance.std = std(DistCyl(:,1));
 
-T = false(n,1);
-B1 = T;
-B2 = T;
-for i = 1:n
-    if BOrd(i) == 0
-        T(i) = true;
-    elseif BOrd(i) == 1
-        B1(i) = true;
-    elseif BOrd(i) == 2
-        B2(i) = true;
-    end
-end
+T = BOrd == 0;
+B1 = BOrd == 1;
+B2 = BOrd == 2;
 B = DistCyl(~T,1);
 T = DistCyl(T,1);
 B1 = DistCyl(B1,1);
@@ -179,17 +174,38 @@ pmdistance.TrunkMean = mean(T);
 pmdistance.TrunkMax = max(T);
 pmdistance.TrunkStd = std(T);
 
-pmdistance.BranchMedian = median(B);
-pmdistance.BranchMean = mean(B);
-pmdistance.BranchMax = max(B);
-pmdistance.BranchStd = std(B);
+if ~isempty(B)
+    pmdistance.BranchMedian = median(B);
+    pmdistance.BranchMean = mean(B);
+    pmdistance.BranchMax = max(B);
+    pmdistance.BranchStd = std(B);
+else
+    pmdistance.BranchMedian = 0;
+    pmdistance.BranchMean = 0;
+    pmdistance.BranchMax = 0;
+    pmdistance.BranchStd = 0;
+end
 
-pmdistance.Branch1Median = median(B1);
-pmdistance.Branch1Mean = mean(B1);
-pmdistance.Branch1Max = max(B1);
-pmdistance.Branch1Std = std(B1);
+if ~isempty(B1)
+    pmdistance.Branch1Median = median(B1);
+    pmdistance.Branch1Mean = mean(B1);
+    pmdistance.Branch1Max = max(B1);
+    pmdistance.Branch1Std = std(B1);
+else
+    pmdistance.Branch1Median = 0;
+    pmdistance.Branch1Mean = 0;
+    pmdistance.Branch1Max = 0;
+    pmdistance.Branch1Std = 0;
+end
 
-pmdistance.Branch2Median = median(B2);
-pmdistance.Branch2Mean = mean(B2);
-pmdistance.Branch2Max = max(B2);
-pmdistance.Branch2Std = std(B2);
+if ~isempty(B2)
+    pmdistance.Branch2Median = median(B2);
+    pmdistance.Branch2Mean = mean(B2);
+    pmdistance.Branch2Max = max(B2);
+    pmdistance.Branch2Std = std(B2);
+else
+    pmdistance.Branch2Median = 0;
+    pmdistance.Branch2Mean = 0;
+    pmdistance.Branch2Max = 0;
+    pmdistance.Branch2Std = 0;
+end
