@@ -18,8 +18,8 @@ function cylinder = cylinders(P,cover,segment,inputs)
 % ---------------------------------------------------------------------
 % CYLINDERS.M       Fits cylinders to the branch-segments of the point cloud
 %
-% Version 2.1.0
-% Latest update     3 Oct 2019
+% Version 2.1.1
+% Latest update     26 Nov 2019
 %
 % Copyright (C) 2013-2019 Pasi Raumonen
 % ---------------------------------------------------------------------
@@ -53,6 +53,12 @@ function cylinder = cylinders(P,cover,segment,inputs)
 %   UnModRadius (Rad0)  Unmodified radii
 %   CylsInSegment       Cylinders (indexes) in each branch, cell-array
 %   ChildCyls           Child cylinders of each cylinder, cell-array
+% ---------------------------------------------------------------------
+
+% Changes from version 2.1.0 to 2.1.1, 26 Nov 2019:
+% 1) Increased the minimum number "n" of estimated cylinders for 
+%    initialization of vectors at the beginning of the code. This is done 
+%    to make sure that trees without branches will not cause errors.
 
 % Changes from version 2.0.0 to 2.1.0, 3 Oct 2019:
 % 1) Bug fix: UnmodRadius is now defined as it should, as the radius after
@@ -70,7 +76,7 @@ SChi = segment.ChildSegment;
 
 %% Initialization of variables
 NumOfSeg = max(size(Segs));   % number of segments
-n = min(40*NumOfSeg,2e5);
+n = max(2000,min(40*NumOfSeg,2e5));
 Rad = zeros(n,1); % Radii of the cylinders
 Len = zeros(n,1); % Lengths of the cylinders
 Axe = zeros(n,3); % Axes of the cylinders
