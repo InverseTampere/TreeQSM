@@ -1,4 +1,13 @@
-function plot_cylinder_model(cylinder,fig,nf,alp,Ind)
+function plot_cylinder_model(cylinder,Color,fig,nf,alp,Ind)
+
+% ---------------------------------------------------------------------
+% PLOT_CYLINDER_MODEL.M       Plots the given cylinder model
+%
+% Version 1.1.0
+% Latest update     13 July 2020
+%
+% Copyright (C) 2013-2020 Pasi Raumonen
+% ---------------------------------------------------------------------
 
 % Plots the cylinder model.
 % cylinder  Structure array containin the cylinder info 
@@ -7,64 +16,97 @@ function plot_cylinder_model(cylinder,fig,nf,alp,Ind)
 % nf        Number of facets in the cyliders (in the thickest cylinder, 
 %               scales down with radius to 4 which is the minimum)
 % alp       Alpha value (1 = no trasparency, 0 = complete transparency)
+% Color     If equals to "order", colors the cylinders based on branching 
+%               order, otherwise colors each branch with unique color 
 % Ind       Indexes of cylinders to be plotted from a subset of cylinders
 %               (Optional, if not given then all cylinders are plotted)
 
+% Changes from version 1.0.0 to 1.1.0, 13 July 2020:
+% 1) Added option for choosing the coloring based either on branch order or
+%    unique color for each branch
+% 2) Removed the possibility of the input "cylinder" being a matrix
+% 3) Added default values for inputs
 
-if isstruct(cylinder)
-    Rad = cylinder.radius;
-    Len = cylinder.length;
-    Sta = cylinder.start;
-    %Sta = mat_vec_subtraction(Sta,Sta(1,:));
-    Axe = cylinder.axis;
-    BOrd = cylinder.BranchOrder;
-else
-    Rad = cylinder(:,1);
-    Len = cylinder(:,2);
-    Sta = cylinder(:,3:5);
-    Sta = mat_vec_subtraction(Sta,Sta(1,:));
-    Axe = cylinder(:,6:8);
-    BOrd = cylinder(:,9);
+n = nargin;
+if n < 5
+    alp = 1;
+    if n < 4
+        nf = 20; 
+        if n < 3
+            fig = 1; 
+            if n == 1
+                Color = 'order';
+            end
+        end
+    end
 end
-if nargin == 5
+
+Rad = cylinder.radius;
+Len = cylinder.length;
+Sta = cylinder.start;
+%Sta = mat_vec_subtraction(Sta,Sta(1,:));
+Axe = cylinder.axis;
+if strcmp(Color,'order')
+    BOrd = cylinder.BranchOrder;
+end
+if strcmp(Color,'branch')
+    Bran = cylinder.branch;
+end
+
+if nargin == 6
     Rad = Rad(Ind);
     Len = Len(Ind);
     Sta = Sta(Ind,:);
     Axe = Axe(Ind,:);
     BOrd = BOrd(Ind);
+    if strcmp(Color,'branch')
+        Bran = Bran(Ind);
+    end
 end
 
-nc = size(Rad,1);
+nc = size(Rad,1); % Number of cylinder
 
-col = [
-    0.00  0.00  1.00
-    0.00  0.50  0.00
-    1.00  0.00  0.00
-    0.00  0.75  0.75
-    0.75  0.00  0.75
-    0.75  0.75  0.00
-    0.25  0.25  0.25
-    0.75  0.25  0.25
-    0.95  0.95  0.00
-    0.25  0.25  0.75
-    0.75  0.75  0.75
-    0.00  1.00  0.00
-    0.76  0.57  0.17
-    0.54  0.63  0.22
-    0.34  0.57  0.92
-    1.00  0.10  0.60
-    0.88  0.75  0.73
-    0.10  0.49  0.47
-    0.66  0.34  0.65
-    0.99  0.41  0.23];
-
-N = double(max(BOrd)+1);
-if N <= 20
-    col = col(1:N,:);
-else
-    m = ceil(N/20);
-    col = repmat(col,[m,1]);
-    col = col(1:N,:);
+if strcmp(Color,'order')
+    Color = 1;
+    % Color the cylinders in branches based on the branch order
+    col = [
+        0.00  0.00  1.00
+        0.00  0.50  0.00
+        1.00  0.00  0.00
+        0.00  0.75  0.75
+        0.75  0.00  0.75
+        0.75  0.75  0.00
+        0.25  0.25  0.25
+        0.75  0.25  0.25
+        0.95  0.95  0.00
+        0.25  0.25  0.75
+        0.75  0.75  0.75
+        0.00  1.00  0.00
+        0.76  0.57  0.17
+        0.54  0.63  0.22
+        0.34  0.57  0.92
+        1.00  0.10  0.60
+        0.88  0.75  0.73
+        0.10  0.49  0.47
+        0.66  0.34  0.65
+        0.99  0.41  0.23];
+    col = repmat(col,[10,1]);
+elseif strcmp(Color,'branch')
+    Color = 0;    
+    % Color the cylinders in branches with an unique color of each branch
+    N = double(max(Bran));
+    col = rand(N,3);
+    Par = cylinder.parent;
+    for i = 2:nc
+        if Par(i) > 0 && Bran(Par(i)) ~= Bran(i)
+            C = col(Bran(Par(i)),:);
+            c = col(Bran(i),:);
+            while sum(abs(C-c)) < 0.2
+                c = rand(1,3);
+            end
+            col(Bran(i),:) = c;
+        end
+    end
 end
 
 Cir = cell(nf,2);
@@ -99,7 +141,11 @@ for i = 1:nc
     C = mat_vec_subtraction(C,-Sta(i,:));
     Vert(t:t+2*n-1,:) = C;
     Facets(f:f+n-1,:) = Cir{n,2}+t-1;
-    fvd(f:f+n-1,:) = repmat(col(BOrd(i)+1,:),[n 1]);
+    if Color == 1
+        fvd(f:f+n-1,:) = repmat(col(BOrd(i)+1,:),[n 1]);
+    else
+        fvd(f:f+n-1,:) = repmat(col(Bran(i),:),[n 1]);
+    end
     t = t+2*n;
     f = f+n;
 end
