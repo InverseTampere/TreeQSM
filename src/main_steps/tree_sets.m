@@ -19,10 +19,10 @@ function [cover,Base,Forb] = tree_sets(P,cover,inputs,segment)
 % TREE_SETS.M       Determines the base of the trunk and the cover sets 
 %                   belonging to the tree, updates the neighbor-relation
 %
-% Version 2.1.0
-% Latest update     11 Oct 2019
+% Version 2.2.0
+% Latest update     13 Aug 2020
 %
-% Copyright (C) 2013-2019 Pasi Raumonen
+% Copyright (C) 2013-2020 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % Determines the cover sets that belong to the tree. Determines also the
@@ -45,6 +45,19 @@ function [cover,Base,Forb] = tree_sets(P,cover,inputs,segment)
 % Base      Base of the trunk (the cover sets forming the base)
 % Forb      Cover sets not part of the tree
 % ---------------------------------------------------------------------
+
+% Changes from version 2.1.0 to 2.2.0, 13 Aug 2020:  
+% 1) "define_base_forb": Changed the base height specification from
+%     0.1*aux.Height to 0.02*aux.Height
+% 2) "define_base_forb": changed the cylinder fitting syntax corresponding
+%     to the new input and outputs of "least_squares_cylinder" 
+% 3) "make_tree_connected”: Removed "Trunk(Base) = false;" at the beginning 
+%     of the function as unnecessary and to prevent errors in a special case 
+%     where the Trunk is equal to Base.
+%	4) "make_tree_connected”: Removed from the end the generation of "Trunk" 
+%     again and the new call for the function 
+%	5) "make_tree_connected”: Increased the minimum distance of a component 
+%     to be removed from 8m to 12m.
 
 % Changes from version 2.0.0 to 2.1.0, 11 Oct 2019:  
 % 1) "define_main_branches": modified the size of neighborhood "balls0", 
@@ -92,7 +105,7 @@ function [Base,Forb,cover] = define_base_forb(P,cover,aux,inputs,segment)
 Ce = aux.Ce;
 if inputs.OnlyTree && nargin == 4
     % No ground in the point cloud, the base is the lowest part
-    BaseHeight = min(1.5,0.1*aux.Height);
+    BaseHeight = min(1.5,0.02*aux.Height);
     I = Ce(:,3) < aux.Hmin+BaseHeight;
     Base = aux.Ind(I);
     Forb = aux.Fal;
@@ -115,7 +128,7 @@ if inputs.OnlyTree && nargin == 4
 elseif inputs.OnlyTree
     % Select the stem sets from the previous segmentation and define the
     % base
-    BaseHeight = min(1.5,0.05*aux.Height);
+    BaseHeight = min(1.5,0.02*aux.Height);
     SoP = segment.SegmentOfPoint(cover.center);
     stem = aux.Ind(SoP == 1);
     I = Ce(stem,3) < aux.Hmin+BaseHeight;
@@ -168,7 +181,8 @@ else
     den = den/max(max(den));  % normalize
     baseden = baseden/max(max(baseden));
     
-    f = den.*hei.*baseden;  % function whose maximum determines location of the trunk
+    % function whose maximum determines location of the trunk
+    f = den.*hei.*baseden;  
     % smooth the function by averaging over 8-neighbors
     x = zeros(n(1),n(2));
     y = zeros(n(1),n(2));
@@ -204,17 +218,18 @@ else
     Trunk = Trunk(I);
     Trunk = union(Trunk,vertcat(Nei{Trunk}));
     Points = Ce(Trunk,:);
-    AP0 = mean(Points);
-    CA0 = [0 0 1];
-    R0 = mean(distances_to_line(Points,CA0,AP0));
-    [R,L,AP,CA,dis] = least_squares_cylinder(Points,AP0,CA0,R0);
+    c.start = mean(Points);
+    c.axis = [0 0 1];
+    c.radius = mean(distances_to_line(Points,c.axis,c.start));
+    c = least_squares_cylinder(Points,c);
     
     % Remove far away points and fit new cylinder
+    dis = distances_to_line(Points,c.axis,c.start);
     [~,I] = sort(abs(dis));
     I = I(1:ceil(0.9*length(I)));
     Points = Points(I,:);
     Trunk = Trunk(I);
-    [R,L,AP,CA] = least_squares_cylinder(Points,AP,CA,R);
+    c = least_squares_cylinder(Points,c);
     
     % Select the sets in the bottom part of the trunk and remove sets too
     % far away form the cylinder axis (also remove far away points from sets)
@@ -224,14 +239,14 @@ else
     TrunkBot = union(TrunkBot,vertcat(Nei{TrunkBot}));
     n = length(TrunkBot);
     Keep = true(n,1); % Keep sets that are close enough the axis
-    a = max(0.06,0.2*R);
-    b = max(0.04,0.15*R);
+    a = max(0.06,0.2*c.radius);
+    b = max(0.04,0.15*c.radius);
     for i = 1:n
-        d = distances_to_line(Ce(TrunkBot(i),:),CA,AP);
-        if d < R+a
+        d = distances_to_line(Ce(TrunkBot(i),:),c.axis,c.start);
+        if d < c.radius+a
             B = Bal{Trunk(i)};
-            d = distances_to_line(P(B,:),CA,AP);
-            I = d < R+b;
+            d = distances_to_line(P(B,:),c.axis,c.start);
+            I = d < c.radius+b;
             Bal{Trunk(i)} = B(I);
         else
             Keep(i) = false;
@@ -245,7 +260,7 @@ else
     Trunk = union(Trunk,vertcat(Nei{Trunk}));
     Trunk = union(Trunk,TrunkBot);
     
-    BaseHeight = min(1.5,0.1*aux.Height);
+    BaseHeight = min(1.5,0.02*aux.Height);
     % Determine the base
     Bot = min(Ce(Trunk,3));
     J = Ce(Trunk,3) < Bot+BaseHeight;
@@ -300,7 +315,8 @@ Exp = Exp(~I|~J); % Only non forbidden sets that are not already in Trunk
 Trunk(Exp) = true; % Add the expansion Exp to Trunk
 L = 0.25; % maximum height difference in Exp from its top to bottom
 H = max(Ce(Trunk,3))-L; % the minimum bottom heigth for the current Exp
-FirstMod = true; % true as long as the expansion is possible with original neighbors
+% true as long as the expansion is possible with original neighbors:
+FirstMod = true; 
 while ~isempty(Exp)
     % Expand Trunk similarly as above as long as possible
     H0 = H;
@@ -391,7 +407,8 @@ while ~isempty(Exp)
         SetsAbove = aux.Ind(I);
         
         % Search the closest connection between Region and SetsAbove that
-        % is enough upward sloping (angle to the vertical has cosine larger than 0.7)
+        % is enough upward sloping (angle to the vertical has cosine larger 
+        % than 0.7)
         if ~isempty(SetsAbove)
             % Compute the distances and cosines of the connections
             n = length(Region);
@@ -405,7 +422,7 @@ while ~isempty(Exp)
                 Dist(i,:) = Len';
                 Cos(i,:) = v(:,3)';
             end
-            I = Cos > 0.7; % select only those connection with large enough cosines
+            I = Cos > 0.7; % select those connection with large enough cosines
             % if not any, search with smaller cosines
             t = 0;
             while ~any(I)
@@ -455,9 +472,9 @@ end % End of function
 function [Trunk,cover] = define_main_branches(cover,segment,aux,inputs)
 
 % If previous segmentation exists, then use it to make the sets in its main
-% branches (stem and first (second or even up to third) order branches) connected. 
-% This ensures that similar branching structure as in the existing segmentation 
-% is possible.
+% branches (stem and first (second or even up to third) order branches) 
+% connected. This ensures that similar branching structure as in the 
+% existing segmentation is possible.
 
 Bal = cover.ball;
 Nei = cover.neighbor;
@@ -494,7 +511,8 @@ N = size(Par);
 for i = 1:BI
     if MainBranchIndexes(i)
         Branch = MainBranches == i; % The sets forming branch "i"
-        Comps = connected_components(Nei,Branch,1,aux.Fal); % the connected components of "Branch"
+        % the connected components of "Branch":
+        Comps = connected_components(Nei,Branch,1,aux.Fal); 
         n = size(Comps,1);
         % Connect the components to each other as long as there are more than
         % one component
@@ -629,7 +647,6 @@ Nei = cover.neighbor;
 Ce = aux.Ce;
 % Expand trunk as much as possible
 Trunk(Forb) = false;
-Trunk(Base) = false;
 Exp = Trunk;
 while any(Exp)
     Exp(vertcat(Nei{Exp})) = true;
@@ -647,8 +664,11 @@ Other(Base) = false;
 
 % Determine parameters on the extent of the "Nearby Space" and acceptable
 % component size
-k0 = min(10,ceil(0.2/inputs.PatchDiam1)); % cell size for "Nearby Space" = k0 times PatchDiam
-k = k0; % current cell size, increases by k0 every time when new connections cannot be made
+% cell size for "Nearby Space" = k0 times PatchDiam:
+k0 = min(10,ceil(0.2/inputs.PatchDiam1)); 
+% current cell size, increases by k0 every time when new connections cannot
+% be made:
+k = k0; 
 if inputs.OnlyTree
     Cmin = 0;
 else
@@ -662,6 +682,7 @@ if any(Other)
     nc = size(Comps,1);
     NonClassified = true(nc,1);
     %plot_segs(P,Comps,6,1,cover.ball)
+    %pause
 else
     NonClassified = false;
 end
@@ -669,175 +690,160 @@ end
 bottom = min(Ce(Base,3));
 % repeat search and connecting as long as "Other" sets exists
 while any(NonClassified) 
-    npre = nnz(NonClassified); % number of "Other" sets before new connections
-    again = true; % check connections again with same "distance" if true
-    
-    % Partition the centers of the cover sets into cubes with size k*dmin
-    [Par,CC] = cubical_partition(Ce,k*inputs.PatchDiam1);
-    Neighbors = cell(nc,1);
-    Sizes = zeros(nc,2);
-    Pass = true(nc,1);
-    first_round = true;
-    while again
-        % Check each component: part of "Tree" or "Forb"
-        for i = 1:nc
-            if NonClassified(i) && Pass(i)
-                comp = Comps{i}; % the candidate component for joining to the tree
-                
-                % If the component is neighbor of forbidden sets, then remove it
-                J = Forb(vertcat(Nei{comp}));
-                if any(J)
-                    NonClassified(i) = false;
-                    Forb(comp) = true;
-                    Other(comp) = false;
-                else
-                    % Other wise check nearest sets for a connection
-                    NC = length(comp);
-                    if first_round
-                        
-                        % Select only the cover sets the nearest to the component
-                        c = unique(CC(comp,:),'rows');
-                        m = size(c,1);
-                        B = cell(m,1);
-                        for j = 1:m
-                            balls = Par(c(j,1)-1:c(j,1)+1,c(j,2)-1:c(j,2)+1,c(j,3)-1:c(j,3)+1);
-                            B{j} = vertcat(balls{:});
-                        end
-                        NearSets = vertcat(B{:});
-                        % Only the non-component cover sets
-                        aux.Fal(comp) = true;
-                        I = aux.Fal(NearSets);
-                        NearSets = NearSets(~I);
-                        aux.Fal(comp) = false;
-                        NearSets = unique(NearSets);
-                        Neighbors{i} = NearSets;
-                        if isempty(NearSets)
-                            Pass(i) = false;
-                        end
-                        % No "Other" sets
-                        I = Other(NearSets);
-                        NearSets = NearSets(~I);
-                    else
-                        NearSets = Neighbors{i};
-                        % No "Other" sets
-                        I = Other(NearSets);
-                        NearSets = NearSets(~I);
-                    end
-                    
-                    % Select different class from NearSets
-                    I = Trunk(NearSets);
-                    J = Forb(NearSets);
-                    trunk = NearSets(I); % "Trunk" sets
-                    forb = NearSets(J); % "Forb" sets
-                    
-                    if length(trunk) ~= Sizes(i,1) || length(forb) ~= Sizes(i,2)
-                        Sizes(i,:) = [length(trunk) length(forb)];
-                        
-                        % If large component is tall and close to ground, then
-                        % search the connection near the component's bottom
-                        if NC > 100
-                            hmin = min(Ce(comp,3));
-                            H = max(Ce(comp,3))-hmin;
-                            if H > 5 && hmin < bottom+5
-                                I = Ce(NearSets,3) < hmin+0.5;
-                                NearSets = NearSets(I);
-                                I = Trunk(NearSets);
-                                J = Forb(NearSets);
-                                trunk = NearSets(I); % "Trunk" sets
-                                forb = NearSets(J); % "Forb" sets
-                            end
-                        end
-                        
-                        % Determine the closest sets for "trunk"
-                        if ~isempty(trunk)
-                            d = pdist2(Ce(comp,:),Ce(trunk,:));
-                            if NC == 1 && length(trunk) == 1
-                                dt = d; % the minimum distance
-                                IC = 1; % the set in component to be connected
-                                IT = 1; % the set in "trunk" to be connected
-                            elseif NC == 1
-                                [dt,IT] = min(d);
-                                IC = 1;
-                            elseif length(trunk) == 1
-                                [dt,IC] = min(d);
-                                IT = 1;
-                            else
-                                [d,IC] = min(d);
-                                [dt,IT] = min(d);
-                                IC = IC(IT);
-                            end
-                        else
-                            dt = 700;
-                        end
-                        
-                        % Determine the closest sets for "forb"
-                        if ~isempty(forb)
-                            d = pdist2(Ce(comp,:),Ce(forb,:));
-                            df = min(d);
-                            if length(df) > 1
-                                df = min(df);
-                            end
-                        else
-                            df = 1000;
-                        end
-                                                
-                        % Determine what to do with the component
-                        if (dt > 8 && dt < 100) || (NC < Cmin && dt > 0.5 && dt < 10)
-                            % Remove small isolated component
-                            Forb(comp) = true;
-                            Other(comp) = false;
-                            NonClassified(i) = false;
-                        elseif 3*df < dt || (df < dt && df > 0.25)
-                            % Join the component to "Forb"
-                            Forb(comp) = true;
-                            Other(comp) = false;
-                            NonClassified(i) = false;
-                        elseif (df == 1000 && dt == 700) || dt > k*inputs.PatchDiam1
-                            % Isolated component, do nothing
-                        else
-                            % Join to "Trunk"
-                            I = comp(IC);
-                            J = trunk(IT);
-                            Other(comp) = false;
-                            Trunk(comp) = true;
-                            NonClassified(i) = false;
-                            % make the connection
-                            Nei{I} = [Nei{I}; J];
-                            Nei{J} = [Nei{J}; I];
-                        end
-                    end
-                end
-            end
-        end
-        first_round = false;
-        % If "Other" has decreased, do another check with same "distance"
-        if nnz(NonClassified) < npre
-            again = true;
-            npre = nnz(NonClassified);
+  npre = nnz(NonClassified); % number of "Other" sets before new connections
+  again = true; % check connections again with same "distance" if true
+  
+  % Partition the centers of the cover sets into cubes with size k*dmin
+  [Par,CC] = cubical_partition(Ce,k*inputs.PatchDiam1);
+  Neighbors = cell(nc,1);
+  Sizes = zeros(nc,2);
+  Pass = true(nc,1);
+  first_round = true;
+  while again
+    % Check each component: part of "Tree" or "Forb"
+    for i = 1:nc
+      if NonClassified(i) && Pass(i)
+        comp = Comps{i}; % candidate component for joining to the tree
+        
+        % If the component is neighbor of forbidden sets, remove it
+        J = Forb(vertcat(Nei{comp}));
+        if any(J)
+          NonClassified(i) = false;
+          Forb(comp) = true;
+          Other(comp) = false;
         else
-            again = false;
+          % Other wise check nearest sets for a connection
+          NC = length(comp);
+          if first_round
+              
+            % Select the cover sets the nearest to the component
+            c = unique(CC(comp,:),'rows');
+            m = size(c,1);
+            B = cell(m,1);
+            for j = 1:m
+                balls = Par(c(j,1)-1:c(j,1)+1,...
+                    c(j,2)-1:c(j,2)+1,c(j,3)-1:c(j,3)+1);
+                B{j} = vertcat(balls{:});
+            end
+            NearSets = vertcat(B{:});
+            % Only the non-component cover sets
+            aux.Fal(comp) = true;
+            I = aux.Fal(NearSets);
+            NearSets = NearSets(~I);
+            aux.Fal(comp) = false;
+            NearSets = unique(NearSets);
+            Neighbors{i} = NearSets;
+            if isempty(NearSets)
+                Pass(i) = false;
+            end
+            % No "Other" sets
+            I = Other(NearSets);
+            NearSets = NearSets(~I);
+          else
+            NearSets = Neighbors{i};
+            % No "Other" sets
+            I = Other(NearSets);
+            NearSets = NearSets(~I);
+          end
+          
+          % Select different class from NearSets
+          I = Trunk(NearSets);
+          J = Forb(NearSets);
+          trunk = NearSets(I); % "Trunk" sets
+          forb = NearSets(J); % "Forb" sets
+          if length(trunk) ~= Sizes(i,1) || length(forb) ~= Sizes(i,2)
+            Sizes(i,:) = [length(trunk) length(forb)];
+            
+            % If large component is tall and close to ground, then
+            % search the connection near the component's bottom
+            if NC > 100
+              hmin = min(Ce(comp,3));
+              H = max(Ce(comp,3))-hmin;
+              if H > 5 && hmin < bottom+5
+                I = Ce(NearSets,3) < hmin+0.5;
+                NearSets = NearSets(I);
+                I = Trunk(NearSets);
+                J = Forb(NearSets);
+                trunk = NearSets(I); % "Trunk" sets
+                forb = NearSets(J); % "Forb" sets
+              end
+            end
+            
+            % Determine the closest sets for "trunk"
+            if ~isempty(trunk)
+                d = pdist2(Ce(comp,:),Ce(trunk,:));
+                if NC == 1 && length(trunk) == 1
+                  dt = d; % the minimum distance
+                  IC = 1; % the set in component to be connected
+                  IT = 1; % the set in "trunk" to be connected
+                elseif NC == 1
+                  [dt,IT] = min(d);
+                  IC = 1;
+                elseif length(trunk) == 1
+                  [dt,IC] = min(d);
+                  IT = 1;
+                else
+                  [d,IC] = min(d);
+                  [dt,IT] = min(d);
+                  IC = IC(IT);
+                end
+            else
+              dt = 700;
+            end
+            
+            % Determine the closest sets for "forb"
+            if ~isempty(forb)
+              d = pdist2(Ce(comp,:),Ce(forb,:));
+              df = min(d);
+              if length(df) > 1
+                  df = min(df);
+              end
+            else
+              df = 1000;
+            end
+            
+            % Determine what to do with the component
+            if (dt > 12 && dt < 100) || (NC < Cmin && dt > 0.5 && dt < 10)
+              % Remove small isolated component
+              Forb(comp) = true;
+              Other(comp) = false;
+              NonClassified(i) = false;
+            elseif 3*df < dt || (df < dt && df > 0.25)
+              % Join the component to "Forb"
+              Forb(comp) = true;
+              Other(comp) = false;
+                NonClassified(i) = false;
+            elseif (df == 1000 && dt == 700) || dt > k*inputs.PatchDiam1
+              % Isolated component, do nothing
+            else
+              % Join to "Trunk"
+              I = comp(IC);
+              J = trunk(IT);
+              Other(comp) = false;
+              Trunk(comp) = true;
+              NonClassified(i) = false;
+              % make the connection
+              Nei{I} = [Nei{I}; J];
+              Nei{J} = [Nei{J}; I];
+            end
+          end
         end
+      end
     end
-    k = k+k0; % increase the cell size of the nearby search space
-    Cmin = 3*Cmin; % increase the acceptable component size
+    first_round = false;
+    % If "Other" has decreased, do another check with same "distance"
+    if nnz(NonClassified) < npre
+        again = true;
+        npre = nnz(NonClassified);
+    else
+        again = false;
+    end
+  end
+  k = k+k0; % increase the cell size of the nearby search space
+  Cmin = 3*Cmin; % increase the acceptable component size
 end
 Forb(Base) = false;
 cover.neighbor = Nei;
 
-Nei = cover.neighbor;
-Trunk = aux.Fal;
-Trunk(Base) = true;
-Exp = Trunk;
-while any(Exp)
-    Exp(vertcat(Nei{Exp})) = true;
-    Exp(Trunk) = false;
-    Exp(Forb) = false;
-    Exp(Base) = false;
-    Trunk(Exp) = true;
-end
-
-if any(~Trunk)
-    [cover,Forb] = make_tree_connected(cover,aux,Forb,Base,Trunk,inputs);
-end
 end % End of function
 
