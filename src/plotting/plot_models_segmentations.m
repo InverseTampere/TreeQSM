@@ -15,11 +15,39 @@
 
 function plot_models_segmentations(P,cover,segment,cylinder,trunk,triangulation)
 
+% ---------------------------------------------------------------------
+% PLOT_MODELS_SEGMENTATION.M   Plots the segmented point clouds and
+%                               cylinder/triangulation models
+%
+% Version 1.1.0
+% Latest update     13 July 2020
+%
+% Copyright (C) 2013-2020 Pasi Raumonen
+% ---------------------------------------------------------------------
 
-%% figure 1,  segmented point cloud, colors denote the branching order
-plot_tree_structure(P,cover,segment,1,1,0,1)
+% Inputs:
+% P             Point cloud
+% cover         cover-structure array
+% segment       segment-structure array
+% cylinder      cylinder-structure array
+% trunk         point cloud of the trunk
+% triangulation triangulation-structure array
 
-%% figure 2,  cylinder model, colors denote the branching order
+% Changes from version 1.0.0 to 1.1.0, 13 July 2020:
+% 1) plots now figure 1 and 2 with two subplots; in the first the colors 
+%    are based on branching order and in the second they are based on
+%    branch
+
+%% figure 1: branch-segmented point cloud 
+% colors denote the branching order and branches
+figure(1)
+subplot(1,2,1)
+plot_branch_segmentation(P,cover,segment,'order')
+subplot(1,2,2)
+plot_branch_segmentation(P,cover,segment,'branch')
+
+%% figure 2: cylinder model 
+% colors denote the branching order and branches
 Sta = cylinder.start;
 P = mat_vec_subtraction(P,Sta(1,:));
 if nargin > 5
@@ -29,16 +57,21 @@ if nargin > 5
 end
 Sta = mat_vec_subtraction(Sta,Sta(1,:));
 cylinder.start = Sta;
-plot_cylinder_model(cylinder,2,10,1)
+figure(2)
+subplot(1,2,1)
+plot_cylinder_model(cylinder,'order',2,10)
+subplot(1,2,2)
+plot_cylinder_model(cylinder,'branch',2,10)
 
-%% figure 3, segmented point cloud and cylinder model in the same figure
-plot_tree_structure(P,cover,segment,3,3,0,1)
+%% figure 3, segmented point cloud and cylinder model
+plot_branch_segmentation(P,cover,segment,'order',3,1)
 hold on
-plot_cylinder_model(cylinder,3,10,0.7)
+plot_cylinder_model(cylinder,'order',3,10,0.7)
 hold off
 
 if nargin > 4 
-    %% figure 4, triangulation model (bottom) and cylinder model (top) of the stem
+    %% figure 4, triangulation model (bottom) and cylinder model (top) 
+    % of the stem
     Facets = double(triangulation.facet);
     CylInd = triangulation.cylind;
     fvd = triangulation.fvd;
@@ -47,15 +80,15 @@ if nargin > 4
         nc = size(Bran,1);
         ind = (1:1:nc)';
         C = ind(Bran == 1);
-        %fvd = ones(size(Facets,1),1);
         n = size(trunk,1);
         I = logical(round(0.55*rand(n,1)));
         figure(4)
         point_cloud_plotting(trunk(I,:),4,3)
-        patch('Vertices',Vert,'Faces',Facets,'FaceVertexCData',fvd,'FaceColor','flat')
+        patch('Vertices',Vert,'Faces',Facets,'FaceVertexCData',fvd,...
+            'FaceColor','flat')
         alpha(1)
         hold on
-        plot_cylinder_model(cylinder,4,20,1,(CylInd:C(end)))
+        plot_cylinder_model(cylinder,'order',4,20,1,(CylInd:C(end)))
         axis equal
         hold off
     else
