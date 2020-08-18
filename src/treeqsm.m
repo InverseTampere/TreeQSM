@@ -20,10 +20,10 @@ function QSM = treeqsm(P,inputs)
 % TREEQSM.M     Reconstructs quantitative structure tree models from point 
 %                   clouds containing a tree.
 %
-% Version 2.3.2
-% Latest update     2 Oct 2019
+% Version 2.4.0
+% Latest update     8 July 2020
 %
-% Copyright (C) 2013-2019 Pasi Raumonen
+% Copyright (C) 2013-2020 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % INPUTS:
@@ -38,46 +38,40 @@ function QSM = treeqsm(P,inputs)
 %
 %   PatchDiam2Min     Minimum patch size of the cover sets in the second cover
 %
-%   PatchDiam2Max     Maximum cover set size in the stem's base in the second cover
+%   PatchDiam2Max     Maximum cover set size in the stem's base in the 
+%                       second cover
 %
 %   BallRad1          Ball size used for the first cover generation
 %
 %   BallRad2          Maximum ball radius used for the second cover generation
 %
-%   nmin1             Minimum number of points in BallRad1-balls, default value 3.
+%   nmin1             Minimum number of points in BallRad1-balls, 
+%                       default value is 3.
 %
-%   nmin2             Minimum number of points in BallRad2-balls, default value 1.
+%   nmin2             Minimum number of points in BallRad2-balls, 
+%                       default value is 1.
 %
-%   lcyl              Cylinder length/radius ratio. Can have multiple values, 
-%                       in which case makes as many models with the same 
-%                       segmentations
+%   OnlyTree          If "1", the point cloud contains only points from the 
+%                       tree and the trunk's base is defined as the lowest 
+%                       part of the point cloud. Default value is "1". 
 %
-%   FilRad            Relative radius for outlier point filtering, 
-%                       default value 3.5. Radius is estimated from the region and
-%                       FilRad*radius is the limit for outlier filtering.
-%                       Can have multiple values in which case makes as many 
-%                       models with the same segmentations.
+%   Tria              If "1", tries to make triangulation for the stem up 
+%                       to first main branch. Default value is "0". 
 %
-%   OnlyTree          If "true" or "1", then the point cloud contains only points 
-%                       from the tree and the trunk's base is defined as the lowest 
-%                       part of the point cloud. Default value "true" or "1". 
+%   Dist              If "1", compute the point-model distances. 
+%                       Default value is "1".
 %
-%   Tria              If "true" or "1", tries to make triangulation for the stem up 
-%                       to first branch. Default value "false" or "0". 
+%   MinCylRad         Minimum cylinder radius, used particularly in the 
+%                       taper corrections
 %
-%   Dist              If "true" or "1", compute the point-model distances. 
-%                       Default value "true" or "1".
+%   ParentCor         If "1", child branch cylinders radii are always 
+%                       smaller than the parent branche's cylinder radii
 %
-%   MinCylRad         Minimum cylinder radius, used particularly in the taper corrections
-%
-%   ParentCor         If "true" or "1", child branch cylinders radii are always smaller 
-%                       than the parent branche's cylinder radii
-%
-%   TaperCor          If "true" or "1", use partially linear (stem) and parabola 
+%   TaperCor          If "1", use partially linear (stem) and parabola 
 %                       (branches) taper corrections
 %
-%   GrowthVolCor      If "true" or "1", use growth volume correction 
-%                       introduced by Jan Hackenberg
+%   GrowthVolCor      If "1", use growth volume correction introduced 
+%                       by Jan Hackenberg
 %
 %   GrowthVolFac      fac-parameter of the growth volume approach, 
 %                       defines upper and lower bound
@@ -89,16 +83,20 @@ function QSM = treeqsm(P,inputs)
 % 
 %   model             Model number of the tree, e.g. with the same inputs
 %
-%   savemat           If "true" or "1", saves the output struct QSM as '
-%                       a matlab-file into \result folder 
+%   savemat           If "1", saves the output struct QSM as a matlab-file
+%                       into \result folder 
 %
-%   savetxt           If "true" or "1", saves the models in .txt-files
+%   savetxt           If "1", saves the models in .txt-files into 
+%                       \result folder 
 %
-%   plot              If "true" or "1", plots the model, the segmentation 
-%                       of the point cloud and distributions
+%   plot              Defines what is plotted during the reconstruction:
+%                       2 = same as below plus distributions
+%                       1 = plots the segmented point cloud and QSMs
+%                       0 = plots nothing
 %
 %   disp              Defines what is displayed during the reconstruction:
-%                       2 = display all; 1 = display name, parameters and distances;
+%                       2 = same as below plus times and tree attributes; 
+%                       1 = display name, parameters and fit metrics;
 %                       0 = display only the name
 % ---------------------------------------------------------------------
 % OUTPUT:
@@ -109,7 +107,7 @@ function QSM = treeqsm(P,inputs)
 %               treedata        Tree attributes  
 %               rundata         Information about the modelling run
 %               pmdistances     Point-to-model distance statistics
-%               triangulation   Triangulation of the stem (if input Tria = true)
+%               triangulation   Triangulation of the stem (if inputs.Tria = 1)
 % ---------------------------------------------------------------------
 
 % cylinder (structure-array) contains the following fields:
@@ -126,16 +124,17 @@ function QSM = treeqsm(P,inputs)
 % PositionInBranch	running number of the cylinder in the branch it belongs
 %
 % branch (structure-array) contains the following fields:
-% order     branch order (0 for trunk, 1 for branches originating from the trunk, etc.)
+% order     branch order (0 for trunk, 1 for branches originating from 
+%               the trunk, etc.)
 % parent	index (in this file) of the parent branch
-% volume	volume of the branch in liters (sum of the volumes of the 
-%               cylinders forming the branch)
-% length	length of the branch in meters (sum of the lengths of the cylinders)
-% angle     branching angle in degrees (angle between the branch and its parent 
+% volume	volume (L) of the branch (sum of the volumes of the cylinders 
+%               forming the branch)
+% length	length (m) of the branch (sum of the lengths of the cylinders)
+% angle     branching angle (deg) (angle between the branch and its parent 
 %               at the branching point)
-% height    height of the base of the branch
-% azimuth   azimuth of the branch at the base in degrees
-% diameter  diameter of the branch at the base in meters
+% height    height (m) of the base of the branch
+% azimuth   azimuth (deg) of the branch at the base 
+% diameter  diameter (m) of the branch at the base
 %
 % treedata (structure-array) contains the following fields:
 % TotalVolume
@@ -162,16 +161,16 @@ function QSM = treeqsm(P,inputs)
 % the following fields:
 % DBHtri            Computed from triangulation model
 % TriaTrunkVolume   Triangulated trunk volume (up to first branch)
-% MixTrunkVolume    Mixed trunk volume, bottom (triangulation) + top (cylinders)
-% MixTotalVolume    Mixed total volume, mixed trunk volume + branch volume (cylinders)
+% MixTrunkVolume    Mixed trunk volume, bottom (triang.) + top (cylinders)
+% MixTotalVolume    Mixed total volume, mixed trunk volume + branch volume
 % TriaTrunkLength   Triangulated trunk length
 %
 % pmdistances (structure-array) contains the following fields (and others):
-% CylDists
-% median
-% mean
-% max
-% std
+% CylDists  Average point-model distance for each cylinder
+% median    median of CylDist for all, stem, 1branch, 2branch cylinder
+% mean      mean of CylDist for all, stem, 1branch, 2branch cylinder
+% max       max of CylDist for all, stem, 1branch, 2branch cylinder
+% std       standard dev. of CylDist for all, stem, 1branch, 2branch cylinder
 % 
 % rundata (structure-array) contains the following fields:
 % inputs    The input parameters in a structure-array
@@ -191,14 +190,30 @@ function QSM = treeqsm(P,inputs)
 % cylind    Cylinder index in the stem where the triangulation stops
 % ---------------------------------------------------------------------
 
+% Changes from version 2.3.2 to 2.4.0, 17 Aug 2020:  
+% First major update. Cylinder fitting process and the taper correction 
+% has changed. The fitting is adaptive and no more “lcyl” and “FilRad” 
+% parameters. Treedata has many new outputs: Branch and cylinder 
+% distributions; surface areas; crown dimensions. More robust triangulation 
+% of stem. Branch, cylinder and triangulation structures have new fields. 
+% More optimisation metrics, more plots of the results and more plotting 
+% functions.
+% Particular changes in treeqsm.m file:
+% 1) Removed the for-loops for lcyl and FilRad.
+% 2) Changes what is displayed about the quality of QSMs 
+%    (point-model-distances and surface coverage) during reconstruction
+% 3) Added version number to rundata
+% 4) Added remove of the field "ChildCyls" and "CylsInSegment" of "cylinder"
+%    from "branches" to "treeqsm".
+
 % Changes from version 2.3.1 to 2.3.2, 2 Dec 2019:  
 % Small changes in the subfunction to allow trees without branches
 
 % Changes from version 2.3.0 to 2.3.1, 8 Oct 2019:  
-% 1) Some changes in the subfunctions, particularly in "cylinders" and "tree_sets"
+% 1) Some changes in the subfunctions, particularly in "cylinders" and 
+%    "tree_sets"
 % 2) Changed how "treeqsm" displays things during the running of the
 %    function
-
 
 
 %% Code starts -->
@@ -215,7 +230,8 @@ name = ['Cover sets      ';
         'Distances       '];
     
 disp('---------------')
-disp(['  ',inputs.name,', Tree = ',num2str(inputs.tree),', Model = ',num2str(inputs.model)])
+disp(['  ',inputs.name,', Tree = ',num2str(inputs.tree),...
+    ', Model = ',num2str(inputs.model)])
 
 % Input parameters
 PatchDiam1 = inputs.PatchDiam1;
@@ -223,13 +239,9 @@ PatchDiam2Min = inputs.PatchDiam2Min;
 PatchDiam2Max = inputs.PatchDiam2Max;
 BallRad1 = inputs.BallRad1; 
 BallRad2 = inputs.BallRad2; 
-lcyl = inputs.lcyl;
-FilRad = inputs.FilRad;
 nd = length(PatchDiam1);
 ni = length(PatchDiam2Min);
 na = length(PatchDiam2Max);
-nl = length(lcyl);
-nf = length(FilRad);
 
 if inputs.disp == 2
   % Display parameter values
@@ -238,10 +250,10 @@ if inputs.disp == 2
   disp(['  PatchDiam2Min = ',num2str(PatchDiam2Min)])
   disp(['  PatchDiam2Max = ',num2str(PatchDiam2Max)])
   disp(['  BallRad2 = ',num2str(BallRad2)])
-  disp(['  lcyl = ',num2str(lcyl)])
-  disp(['  FilRad = ',num2str(FilRad)])
-  disp(['  nmin1 = ',num2str(inputs.nmin1),',  nmin2 = ',num2str(inputs.nmin2)])
-  disp(['  Tria = ',num2str(inputs.Tria),', OnlyTree = ',num2str(inputs.OnlyTree)])
+  disp(['  nmin1 = ',num2str(inputs.nmin1),...
+      ', nmin2 = ',num2str(inputs.nmin2)])
+  disp(['  Tria = ',num2str(inputs.Tria),...
+      ', OnlyTree = ',num2str(inputs.OnlyTree)])
   disp('Progress:')
 end
 
@@ -354,138 +366,136 @@ for h = 1:nd
         display_time(Time(8),sum(Time(1:8)),name(4,:),1)
       end
       
-      for k = 1:nl
-        for l = 1:nf
-          tic
-          % Modify inputs for specific lcyl and FilRad-values
-          Inputs.lcyl = lcyl(k);
-          Inputs.FilRad = FilRad(l);
-          if (nl > 1 || nf > 1) && inputs.disp >= 1
-            disp('        -----------------')
-            disp(['        lcyl = ',num2str(lcyl(k)),...
-                ', FilRad = ',num2str(FilRad(l))]);
-            disp('        -----------------')
-          end
+      %% Define cylinders
+      %save('jatka_cylinder','P','cover2','segment2','Inputs')
+      cylinder = cylinders(P,cover2,segment2,Inputs);
+      Time(9) = toc;
+      if inputs.disp == 2
+        display_time(Time(9),sum(Time(1:9)),name(5,:),1)
+      end
+      
+      if ~isempty(cylinder.radius)
+        %% Determine the branches
+        [branch,cylinder] = branches(segment2,cylinder);
+        
+        %% Compute (and display) model attributes
+        T = segment2.segments{1};
+        T = vertcat(T{:});
+        T = vertcat(cover2.ball{T});
+        trunk = P(T,:); % point cloud of the trunk
+        % Compute attributes and distibutions from the cylinder model
+        % and possibly some from a triangulation
+        [treedata,triangulation] = tree_data(cylinder,branch,trunk,inputs);
+        Time(10) = toc-Time(9);
+        if inputs.disp == 2
+          display_time(Time(10),sum(Time(1:10)),name(6,:),1)
+        end
+        
+        %% Compute point model distances
+        if inputs.Dist
+          pmdis = point_model_distance(P,cylinder);
           
-          %% Define cylinders
-          cylinder = cylinders(P,cover2,segment2,Inputs);
-          Time(9) = toc;
+          % Display the mean point-model distances and surface coverages
+          % for stem, branch, 1branc and 2branch cylinders
+          if inputs.disp >= 1
+            D = [pmdis.TrunkMean pmdis.BranchMean ...
+                pmdis.Branch1Mean pmdis.Branch2Mean];
+            D = round(10000*D)/10;
+            
+            T = cylinder.branch == 1;
+            B1 = cylinder.BranchOrder == 1;
+            B2 = cylinder.BranchOrder == 2;
+            SC = 100*cylinder.SurfCov;
+            S = [mean(SC(T)) mean(SC(~T)) mean(SC(B1)) mean(SC(B2))];
+            S = round(10*S)/10;
+            
+            disp('  ----------')
+            str = ['  PatchDiam1 = ',num2str(PatchDiam1(h)), ...
+                ', PatchDiam2Max = ',num2str(PatchDiam2Max(i)), ...
+                ', PatchDiam2Min = ',num2str(PatchDiam2Min(j))];
+            disp(str)
+            str = ['  Distances and surface coverages for ',...
+                'trunk, branch, 1branch, 2branch:'];
+            disp(str)
+            str = ['  Average cylinder-point distance:  '...
+                num2str(D(1)),'  ',num2str(D(2)),'  ',...
+                num2str(D(3)),'  ',num2str(D(4)),' mm'];
+            disp(str)
+            str = ['  Average surface coverage:  '...
+                num2str(S(1)),'  ',num2str(S(2)),'  ',...
+                num2str(S(3)),'  ',num2str(S(4)),' %'];
+            disp(str)
+            disp('  ----------')
+          end
+          Time(11) = toc-sum(Time(9:10));
           if inputs.disp == 2
-            display_time(Time(9),sum(Time(1:9)),name(5,:),1)
+            display_time(Time(11),sum(Time(1:11)),name(7,:),1)
           end
-          
-          if ~isempty(cylinder.radius)
-            %% Determine the branches
-            [branch,cylinder] = branches(segment2,cylinder);
-            
-            %% Compute and display model attributes
-            T = segment2.segments{1};
-            T = vertcat(T{:});
-            T = vertcat(cover2.ball{T});
-            trunk = P(T,:); % point cloud of the trunk
-            if inputs.disp == 2
-              dis = 1;
-            else
-              dis = 0;
+        end
+        disp('----------------------------------')
+        
+        %% Reconstruct the output "QSM"
+        Date(2,:) = clock;
+        Time(12) = sum(Time(1:11));
+        clear qsm
+        qsm = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},...
+          'pmdistance',{},'triangulation',{});
+        % Remove "ChildCyls" and "CylsInSegment" fields from "cylinder":
+        cylinder = rmfield(cylinder,{'ChildCyls','CylsInSegment'});
+        qsm(1).cylinder = cylinder;
+        qsm(1).branch = branch;
+        qsm(1).treedata = treedata;
+        qsm(1).rundata.inputs = Inputs;
+        qsm(1).rundata.time = single(Time);
+        qsm(1).rundata.date = single(Date);
+        qsm(1).rundata.version = '2.4.0';
+        if inputs.Dist
+          qsm(1).pmdistance = pmdis;
+        end
+        if inputs.Tria
+          qsm(1).triangulation = triangulation;
+        end
+        nmodel = nmodel+1;
+        QSM(nmodel) = qsm;
+        
+        %% Save the output into results-folder
+        % matlab-format (.mat)
+        if inputs.savemat
+          str = [inputs.name,'_t',num2str(inputs.tree),'_m',...
+            num2str(inputs.model)];
+          save(['results/QSM_',str],'QSM')
+        end
+        % text-format (.txt)
+        if inputs.savetxt
+          if nd > 1 || na > 1 || ni > 1
+            str = [inputs.name,'_t',num2str(inputs.tree),'_m',...
+              num2str(inputs.model)];
+            if nd > 1
+              str = [str,'_D',num2str(PatchDiam1(h))];
             end
-            % Compute attributes and distibutions from the cylinder model
-            % and possibly some from a triangulation
-            [treedata,triangulation] = tree_data(cylinder,branch,inputs,trunk,dis);
-            Time(10) = toc-Time(9);
-            if inputs.disp == 2
-              display_time(Time(10),sum(Time(1:10)),name(6,:),1)
+            if na > 1
+              str = [str,'_DA',num2str(PatchDiam2Max(i))];
             end
-            
-            %% Compute point model distances
-            if inputs.Dist
-              pmdis = point_model_distance(P,cylinder);
-              D = [pmdis.TrunkMean pmdis.BranchMean ...
-                  pmdis.Branch1Mean pmdis.Branch2Mean];
-              D = round(10000*D)/10;
-              if inputs.disp >= 0
-                disp('  ----------')
-                str = ['  PatchDiam1 = ',num2str(PatchDiam1(h)), ...
-                    ', PatchDiam2Max = ',num2str(PatchDiam2Max(i)), ...
-                    ', PatchDiam2Min = ',num2str(PatchDiam2Min(j)), ...
-                    ', lcyl = ',num2str(lcyl(k)),', FilRad = ',num2str(FilRad(l))];
-                disp(str)
-                str = ['  Average cylinder-point distance ',...
-                    '(trunk, branch, 1branch, 2branch):  '...
-                    num2str(D(1)),'  ',num2str(D(2)),'  ',...
-                    num2str(D(3)),'  ',num2str(D(4)),' mm'];
-                disp(str)
-                disp('  ----------')
-              end
-              Time(11) = toc-sum(Time(9:10));
-              if inputs.disp == 2
-                  display_time(Time(11),sum(Time(1:11)),name(7,:),1)
-              end
+            if ni > 1
+              str = [str,'_DI',num2str(PatchDiam2Min(j))];
             end
-            disp('----------------------------------')
-            
-            %% Reconstruct the output "QSM"
-            Date(2,:) = clock;
-            Time(12) = sum(Time(1:11));
-            clear qsm
-            qsm = struct('cylinder',{},'branch',{},'treedata',{},...
-                'rundata',{},'pmdistance',{},'triangulation',{});
-            qsm(1).cylinder = cylinder;
-            qsm(1).branch = branch;
-            qsm(1).treedata = treedata;
-            qsm(1).rundata.inputs = Inputs;
-            qsm(1).rundata.time = single(Time);
-            qsm(1).rundata.date = single(Date);
-            if inputs.Dist
-              qsm(1).pmdistance = pmdis;
-            end
-            if inputs.Tria
-              qsm(1).triangulation = triangulation;
-            end
-            nmodel = nmodel+1;
-            QSM(nmodel) = qsm;
-            
-            %% Save the output into results-folder
-            % matlab-format (.mat)
-            if inputs.savemat
-              str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
-              save(['results/QSM_',str],'QSM')
-            end
-            % text-format (.txt)
-            if inputs.savetxt
-              if nd > 1 || na > 1 || ni > 1 || nl > 1 || nf > 1
-                str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
-                if nd > 1
-                  str = [str,'_D',num2str(PatchDiam1(h))];
-                end
-                if na > 1
-                  str = [str,'_DA',num2str(PatchDiam2Max(i))];
-                end
-                if ni > 1
-                  str = [str,'_DI',num2str(PatchDiam2Min(j))];
-                end
-                if nl > 1
-                  str = [str,'_L',num2str(lcyl(k))];
-                end
-                if nf > 1
-                  str = [str,'_F',num2str(FilRad(l))];
-                end
-              else
-                str = [inputs.name,'_t',num2str(inputs.tree),'_m',num2str(inputs.model)];
-              end
-              save_model_text(qsm,str)
-            end
-            
-            %% Plot models and segmentations
-            if inputs.plot
-              if inputs.Tria
-                plot_models_segmentations(P,cover2,segment2,cylinder,trunk,triangulation)
-              else
-                plot_models_segmentations(P,cover2,segment2,cylinder)
-              end
-              if nd > 1 || na > 1 || ni > 1 || nl > 1 || nf > 1
-                pause
-              end
-            end
+          else
+            str = [inputs.name,'_t',num2str(inputs.tree),'_m',...
+              num2str(inputs.model)];
+          end
+          save_model_text(qsm,str)
+        end
+        
+        %% Plot models and segmentations
+        if inputs.plot >= 1
+          if inputs.Tria
+            plot_models_segmentations(P,cover2,segment2,cylinder,trunk,...
+                triangulation)
+          else
+            plot_models_segmentations(P,cover2,segment2,cylinder)
+          end
+          if nd > 1 || na > 1 || ni > 1
+            pause
           end
         end
       end
