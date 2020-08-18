@@ -13,15 +13,15 @@
 % You should have received a copy of the GNU General Public License
 % along with TREEQSM.  If not, see <http://www.gnu.org/licenses/>.
 
-function [par,d,conv,rel] = nlssolver(par,P)
+function [par,d,conv,rel] = nlssolver(par,P,weight)
 
 % ---------------------------------------------------------------------
 % NLSSOLVER.M   Nonlinear least squares solver for cylinders.
 %
-% Version 2.0
-% Latest update     16 Aug 2017
+% Version 2.1.0
+% Latest update     14 July 2020
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2020 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % Input 
@@ -34,19 +34,31 @@ function [par,d,conv,rel] = nlssolver(par,P)
 % conv      True if fitting converged
 % rel       True if condition number was not very bad, fit was reliable
 
+% Changes from version 2.0.0 to 2.1.0, 14 July 2020:
+% 1) Added optional input for weights of the points
 
 maxiter = 50;
 iter = 0;
 conv = false;
 rel = true;
 
-% Gauss-Newton iterations
+if nargin == 2
+    NoWeights = true;
+else
+    NoWeights = false;
+end
+
+%% Gauss-Newton iterations
 while iter < maxiter && ~conv && rel
     
-    % Calculate the distances and Jacobian
-    [d0, J] = func_grad_cylinder(par,P);
+    %% Calculate the distances and Jacobian
+    if NoWeights
+        [d0, J] = func_grad_cylinder(par,P);
+    else
+        [d0, J] = func_grad_cylinder(par,P,weight);
+    end
     
-    % Calculate update step and gradient.
+    %% Calculate update step and gradient.
     SS0 = norm(d0); % Squared sum of the distances
     Ra = triu(qr([J, d0]));
     R = Ra(1:5,1:5);
@@ -56,13 +68,18 @@ while iter < maxiter && ~conv && rel
     warning on
     par = par+p; % update the parameters
     
-    % Check reliability
+    %% Check reliability
     if rcond(-R) < 10000*eps
         rel = false;
     end
     
-    % Check convergence
-    d = func_grad_cylinder(par,P); % The distances with the new parameter values
+    %% Check convergence:
+    % The distances with the new parameter values:
+    if NoWeights
+        d = func_grad_cylinder(par,P); 
+    else
+        d = func_grad_cylinder(par,P,weight); 
+    end
     SS1 = norm(d); % Squared sum of the distances
     if abs(SS0-SS1) < 1e-4
         conv = true;
