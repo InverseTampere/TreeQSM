@@ -1,6 +1,6 @@
 # TreeQSM
 
-**Version 2.3.2**
+**Version 2.4.0**
 **Reconstruction of quantitative structure models of trees from point cloud data**
 
 [![DOI](https://zenodo.org/badge/100592530.svg)](https://zenodo.org/badge/latestdoi/100592530)
