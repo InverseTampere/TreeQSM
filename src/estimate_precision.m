@@ -13,7 +13,8 @@
 % You should have received a copy of the GNU General Public License
 % along with TREEQSM.  If not, see <http://www.gnu.org/licenses/>.
 
-function [TreeData,OptQSMs,OptQSM] = estimate_precision(QSMs,NewQSMs,OptModels,savename)
+function [TreeData,OptQSMs,OptQSM] = ...
+  estimate_precision(QSMs,NewQSMs,OptModels,savename)
 
 % ---------------------------------------------------------------------
 % ESTIMATE_PRECISION.M      Combines additional QSMs with optimal inputs
