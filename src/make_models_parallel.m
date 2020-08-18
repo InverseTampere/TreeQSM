@@ -18,10 +18,10 @@ function QSMs = make_models_parallel(dataname,savename,Nmodels,inputs)
 % ---------------------------------------------------------------------
 % MAKE_MODELS.M       Makes QSMs of given point clouds.
 %
-% Version 1.1.0
-% Latest update     03 Oct 2019
+% Version 1.1.2
+% Latest update     18 Aug 2020
 %
-% Copyright (C) 2013-2019 Pasi Raumonen
+% Copyright (C) 2013-2020 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % Makes QSMs of given point clouds specified by the "dataname" and by the
@@ -47,6 +47,13 @@ function QSMs = make_models_parallel(dataname,savename,Nmodels,inputs)
 % Output:
 % QSMs          Structure array containing all the QSMs generated
 % ---------------------------------------------------------------------
+
+% Changes from version 1.1.1 to 1.1.2, 18 Aug 2020:
+% 1) Removed the inputs "lcyl" and "FilRad" from the inputs and the 
+%    calculations of number of input parameters
+
+% Changes from version 1.1.0 to 1.1.1, 13 Jan 2020:
+% 1) Changed "m = m+n;" to "m = m+n(j);" at the end of the function.
 
 % Changes from version 1.0.0 to 1.1.0, 03 Oct 2019:
 % 1) Added try-catch structure where "treeqsm" is called, so that if there
@@ -81,10 +88,6 @@ if nargin == 3 || nargin == 2
     inputs.PatchDiam2Min = [0.015 0.025]; 
     % Maximum cover set size in the stem's base in the second cover:
     inputs.PatchDiam2Max = [0.06 0.08]; 
-    % Relative (length/radius) length of the cylinders:
-    inputs.lcyl = [3 6]; 
-    % Relative radius for outlier point filtering:
-    inputs.FilRad = [3]; 
     
     % The following parameters can be varied and but usually can be kept as
     % shown (i.e. as little bigger than PatchDiam parameters):
@@ -129,7 +132,7 @@ end
 % Compute the number of input parameter combinations
 in = inputs(1);
 ninputs = prod([length(in.PatchDiam1) length(in.PatchDiam2Min)...
-    length(in.PatchDiam2Max) length(in.lcyl) length(in.FilRad)]);
+    length(in.PatchDiam2Max)]);
 
 
 %% Load data
@@ -214,7 +217,7 @@ for t = 1:nt % trees
         QSM = qsms{j};
         a = max(size(QSM));
         QSMs(m:m+a-1) = QSM;
-        m = m+n;
+        m = m+n(j);
     end
     str = ['results/',savename];
     save(str,'QSMs')
