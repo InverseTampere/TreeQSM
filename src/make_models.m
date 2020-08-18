@@ -45,6 +45,10 @@ function QSMs = make_models(dataname,savename,Nmodels,inputs)
 % QSMs          Structure array containing all the QSMs generated
 % ---------------------------------------------------------------------
 
+% Changes from version 1.1.0 to 1.1.1, 18 Aug 2020:
+% 1) Removed the inputs "lcyl" and "FilRad" from the inputs and the 
+%    calculations of number of input parameters
+
 % Changes from version 1.0.0 to 1.1.0, 03 Oct 2019:
 % 1) Added try-catch structure where "treeqsm" is called, so that if there
 %    is an error during the reconstruction process of one tree, then the 
@@ -71,15 +75,11 @@ if nargin == 3 || nargin == 2
     % The following parameters can be varied and should be optimised 
     % (each can have multiple values):
     % Patch size of the first uniform-size cover:
-    inputs.PatchDiam1 = [0.05 0.075 0.1]; 
+    inputs.PatchDiam1 = [0.08 0.1]; 
     % Minimum patch size of the cover sets in the second cover:
-    inputs.PatchDiam2Min = [0.01 0.02]; 
+    inputs.PatchDiam2Min = [0.015 0.025]; 
     % Maximum cover set size in the stem's base in the second cover:
-    inputs.PatchDiam2Max = [0.05 0.06 0.07]; 
-    % Relative (length/radius) length of the cylinders:
-    inputs.lcyl = [3 5];
-    % Relative radius for outlier point filtering:
-    inputs.FilRad = [3]; 
+    inputs.PatchDiam2Max = [0.06 0.08]; 
     
     % The following parameters can be varied and but usually can be kept as
     % shown (i.e. as little bigger than PatchDiam parameters):
@@ -124,7 +124,7 @@ end
 % Compute the number of input parameter combinations
 in = inputs(1);
 ninputs = prod([length(in.PatchDiam1) length(in.PatchDiam2Min)...
-    length(in.PatchDiam2Max) length(in.lcyl) length(in.FilRad)]);
+    length(in.PatchDiam2Max)]);
 
 %% Load data
 matobj = matfile([dataname,'.mat']);
