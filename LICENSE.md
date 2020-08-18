@@ -1,5 +1,5 @@
-TreeQSM Version 2.3.2
-Copyright (C) 2013-2019 Pasi Raumonen
+TreeQSM Version 2.4.0
+Copyright (C) 2013-2020 Pasi Raumonen
 
 TreeQSM is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
