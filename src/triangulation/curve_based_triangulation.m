@@ -19,10 +19,10 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 % CURVE_BASED_TRIANGULATION.M   Reconstructs a triangulation for the
 %                               stem-buttress surface based on boundary curves
 %
-% Version 1.0.1
-% Latest update     26 Nov 2019
+% Version 1.0.3
+% Latest update     11 Aug 2020
 %
-% Copyright (C) 2015-2017 Pasi Raumonen
+% Copyright (C) 2015-2020 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % Inputs:
@@ -42,6 +42,13 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 %   triah           TriaHeight
 %   triaw           TriaWidth
 % ---------------------------------------------------------------------
+
+% Changes from version 1.0.2 to 1.0.3, 11 Aug 2020:  
+% 1) Small changes in the code when computing the delaunay triangulation 
+%    of the top layer 
+
+% Changes from version 1.0.1 to 1.0.2, 15 Jan 2020:  
+% 1) Added side surface areas (side, top, bottom) to output as fields 
 
 % Changes from version 1.0.0 to 1.0.1, 26 Nov 2019:  
 % 1) Removed the plotting of the triangulation model at the end of the code
@@ -150,12 +157,13 @@ while i <= N && pe < np
             LineEle = Curve([2:end 1],:)-Curve(1:end,:);
             d = sqrt(sum(LineEle.*LineEle,2));
             m = length(CrossLines);
-            %Curve(InterLines,:)
             for k = 1:2:m
                 if CrossLines(k) ~= n
-                    Curve(CrossLines(k)+1,:) = Curve(CrossLines(k),:)+0.9*CrossLen(k)/d(CrossLines(k))*LineEle(CrossLines(k),:);
+                    Curve(CrossLines(k)+1,:) = Curve(CrossLines(k),:)+...
+                        0.9*CrossLen(k)/d(CrossLines(k))*LineEle(CrossLines(k),:);
                 else
-                    Curve(1,:) = Curve(CrossLines(k),:)+0.9*CrossLen(k)/d(CrossLines(k))*LineEle(CrossLines(k),:);
+                    Curve(1,:) = Curve(CrossLines(k),:)+...
+                        0.9*CrossLen(k)/d(CrossLines(k))*LineEle(CrossLines(k),:);
                 end
             end
             [Intersect,IntersectLines] = check_self_intersection(Curve(:,1:2));
@@ -417,15 +425,15 @@ C(1:n-1,2) = (2:1:n)';
 C(n,2) = 1;
 warning off
 dt = delaunayTriangulation(Curve(:,1),Curve(:,2),C);
-In = dt.isInterior();
-TopTria = dt(In,:);
 Points = dt.Points;
 warning on
-if size(Points,1) > size(Curve,1)
+if min(size(dt)) == 0 || size(Points,1) > size(Curve,1)
     disp('  No triangulation: Problem with delaunay in the top layer')
     triangulation = zeros(0,1);
     return
 end
+In = dt.isInterior();
+TopTria = dt(In,:);
 TopTria0 = TopTria;
 TopTria(:,1) = ind(TopTria(:,1));
 TopTria(:,2) = ind(TopTria(:,2));
@@ -473,6 +481,12 @@ end
 VTotal = sum(At.*sum(Ct.*Nt,2))+sum(Asb.*sum(Csb.*Nsb,2))+sum(Ag.*sum(Cg.*Ng,2));
 VTotal = round(10000*VTotal/3)/10;
 
+if VTotal < 0
+    disp('  No triangulation: Problem with volume')
+    triangulation = zeros(0,1);
+    return
+end
+
 V = mat_vec_subtraction(Vert(Tria(:,1),1:2),CenterTop(1:2));
 fvd = sqrt(sum(V.*V,2));
 clear Model
@@ -480,6 +494,9 @@ triangulation.vert = single(Vert);
 triangulation.facet = uint16(Tria);
 triangulation.fvd = single(fvd);
 triangulation.volume = VTotal;
+triangulation.SideArea = sum(Asb);
+triangulation.BottomArea = sum(Ag);
+triangulation.TopArea = sum(At);
 triangulation.bottom = min(Vert(:,3));
 triangulation.top = max(Vert(:,3));
 triangulation.triah = TriaHeight;
