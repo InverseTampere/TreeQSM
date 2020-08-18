@@ -1,4 +1,4 @@
-function plot_segments(P,Bal,fig,seg1,seg2,seg3,seg4,seg5)
+function plot_segments(P,Bal,fig,ms,seg1,seg2,seg3,seg4,seg5)
 
 % Plots point cloud segments/subsets defined as subsets of cover sets.
 % If the subsets intersect, then assiggnes the common points to the
@@ -14,24 +14,23 @@ function plot_segments(P,Bal,fig,seg1,seg2,seg3,seg4,seg5)
 % seg4  (Optional) Segment/subset 4, color cyan
 % seg5  (Optional) Segment/subset 5, color magenta
 
-ms = 1;
 
-if nargin == 4
+if nargin == 5
     S1 = unique(vertcat(Bal{seg1}));
     figure(fig)
     plot3(P(S1,1),P(S1,2),P(S1,3),'b.','Markersize',ms)
     axis equal
-elseif nargin == 5
+elseif nargin == 6
     S1 = unique(vertcat(Bal{seg1}));
     S2 = unique(vertcat(Bal{seg2}));
     S2 = setdiff(S2,S1);
     figure(fig)
-    plot3(P(S1,1),P(S1,2),P(S1,3),'b.','Markersize',ms)
+    plot3(P(S1,1),P(S1,2),P(S1,3),'b.','Markersize',1.5*ms)
     hold on
     plot3(P(S2,1),P(S2,2),P(S2,3),'r.','Markersize',ms)
     axis equal
     hold off
-elseif nargin == 6
+elseif nargin == 7
     S1 = unique(vertcat(Bal{seg1}));
     S2 = unique(vertcat(Bal{seg2}));
     S3 = unique(vertcat(Bal{seg3}));
@@ -45,7 +44,7 @@ elseif nargin == 6
     plot3(P(S3,1),P(S3,2),P(S3,3),'g.','Markersize',ms)
     axis equal
     hold off
-elseif nargin == 7
+elseif nargin == 8
     S1 = unique(vertcat(Bal{seg1}));
     S2 = unique(vertcat(Bal{seg2}));
     S3 = unique(vertcat(Bal{seg3}));
@@ -64,7 +63,7 @@ elseif nargin == 7
     plot3(P(S4,1),P(S4,2),P(S4,3),'c.','Markersize',ms)
     axis equal
     hold off
-elseif nargin == 8
+elseif nargin == 9
     S1 = unique(vertcat(Bal{seg1}));
     S2 = unique(vertcat(Bal{seg2}));
     S3 = unique(vertcat(Bal{seg3}));
