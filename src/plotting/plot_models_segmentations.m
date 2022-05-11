@@ -49,13 +49,13 @@ plot_branch_segmentation(P,cover,segment,'branch')
 %% figure 2: cylinder model 
 % colors denote the branching order and branches
 Sta = cylinder.start;
-P = mat_vec_subtraction(P,Sta(1,:));
+P = P-Sta(1,:);
 if nargin > 5
-    trunk = mat_vec_subtraction(trunk,Sta(1,:));
+    trunk = trunk-Sta(1,:);
     Vert = double(triangulation.vert);
-    Vert = mat_vec_subtraction(Vert,Sta(1,:));
+    Vert = Vert-Sta(1,:);
 end
-Sta = mat_vec_subtraction(Sta,Sta(1,:));
+Sta = Sta-Sta(1,:);
 cylinder.start = Sta;
 figure(2)
 subplot(1,2,1)
