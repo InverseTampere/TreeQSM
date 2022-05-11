@@ -5,26 +5,26 @@ function C = expand(Nei,C,n,Forb)
 % and "Forb" can be a number vector or a logical vector.
 
 if nargin == 3
-    for i = 1:n
-        C = union(C,vertcat(Nei{C}));
-    end
-    if size(C,2) > 1
-        C = C';
-    end
+  for i = 1:n
+    C = union(C,vertcat(Nei{C}));
+  end
+  if size(C,2) > 1
+    C = C';
+  end
 else
-    if islogical(Forb)
-        for i = 1:n
-            C = union(C,vertcat(Nei{C}));
-            I = Forb(C);
-            C = C(~I);
-        end
-    else
-        for i = 1:n
-            C = union(C,vertcat(Nei{C}));
-            C = setdiff(C,Forb);
-        end
+  if islogical(Forb)
+    for i = 1:n
+      C = union(C,vertcat(Nei{C}));
+      I = Forb(C);
+      C = C(~I);
     end
-    if size(C,2) > 1
-        C = C';
+  else
+    for i = 1:n
+      C = union(C,vertcat(Nei{C}));
+      C = setdiff(C,Forb);
     end
+  end
+  if size(C,2) > 1
+    C = C';
+  end
 end
