@@ -58,13 +58,14 @@ while iter < maxiter && ~conv && rel
         [d0, J] = func_grad_cylinder(par,P,weight);
     end
     
-    %% Calculate update step and gradient.
+    %% Calculate update step
     SS0 = norm(d0); % Squared sum of the distances
-    Ra = triu(qr([J, d0]));
-    R = Ra(1:5,1:5);
-    q = Ra(1:5,6);
+    % solve for the system of equations: 
+    % par(i+1) = par(i) - (J'J)^(-1)*J'd0(par(i))
+    A = J'*J;
+    b = J'*d0;
     warning off
-    p = -R\q; % solve for the system of equations
+    p = -A\b; % solve for the system of equations
     warning on
     par = par+p; % update the parameters
     
