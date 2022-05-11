@@ -20,10 +20,10 @@ function QSM = treeqsm(P,inputs)
 % TREEQSM.M     Reconstructs quantitative structure tree models from point 
 %                   clouds containing a tree.
 %
-% Version 2.4.0
-% Latest update     8 July 2020
+% Version 2.4.1
+% Latest update     2 May 2022
 %
-% Copyright (C) 2013-2020 Pasi Raumonen
+% Copyright (C) 2013-2022 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % INPUTS:
@@ -156,7 +156,6 @@ function QSM = treeqsm(P,inputs)
 % LengthBranchOrder     Branch length per branching order
 % NumberBranchOrder     Number of branches per branching order
 
-%
 % treedata from mixed model (cylinders and triangulation) contains also 
 % the following fields:
 % DBHtri            Computed from triangulation model
@@ -189,6 +188,15 @@ function QSM = treeqsm(P,inputs)
 % triah     Width of the triangles
 % cylind    Cylinder index in the stem where the triangulation stops
 % ---------------------------------------------------------------------
+
+% Changes from version 2.4.0 to 2.4.1, 2 May 2022:  
+% Minor update. New filtering options, new code ("define_input") for 
+% selecting automatically PatchDiam and BallRad parameter values for 
+% the optimization process, added sensitivity estimates of the results, 
+% new smoother plotting of QSMs, corrected some bugs, rewrote some 
+% functions (e.g. "branches").
+% Particular changes in treeqsm.m file:
+% 1) Deleted the remove of the field "ChildCyls" and "CylsInSegment".
 
 % Changes from version 2.3.2 to 2.4.0, 17 Aug 2020:  
 % First major update. Cylinder fitting process and the taper correction 
@@ -228,10 +236,12 @@ name = ['Cover sets      ';
         'Cylinders       ';
         'Branch & data   ';
         'Distances       '];
-    
-disp('---------------')
-disp(['  ',inputs.name,', Tree = ',num2str(inputs.tree),...
+ 
+if inputs.disp > 0
+  disp('---------------')
+  disp(['  ',inputs.name,', Tree = ',num2str(inputs.tree),...
     ', Model = ',num2str(inputs.model)])
+end
 
 % Input parameters
 PatchDiam1 = inputs.PatchDiam1;
@@ -250,8 +260,6 @@ if inputs.disp == 2
   disp(['  PatchDiam2Min = ',num2str(PatchDiam2Min)])
   disp(['  PatchDiam2Max = ',num2str(PatchDiam2Max)])
   disp(['  BallRad2 = ',num2str(BallRad2)])
-  disp(['  nmin1 = ',num2str(inputs.nmin1),...
-      ', nmin2 = ',num2str(inputs.nmin2)])
   disp(['  Tria = ',num2str(inputs.Tria),...
       ', OnlyTree = ',num2str(inputs.OnlyTree)])
   disp('Progress:')
@@ -268,7 +276,6 @@ if ~isa(P,'double')
 end
 
 %% Initialize the output file
-clear QSM
 QSM = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},...
     'pmdistance',{},'triangulation',{});
 
@@ -367,7 +374,6 @@ for h = 1:nd
       end
       
       %% Define cylinders
-      %save('jatka_cylinder','P','cover2','segment2','Inputs')
       cylinder = cylinders(P,cover2,segment2,Inputs);
       Time(9) = toc;
       if inputs.disp == 2
@@ -376,7 +382,7 @@ for h = 1:nd
       
       if ~isempty(cylinder.radius)
         %% Determine the branches
-        [branch,cylinder] = branches(segment2,cylinder);
+        branch = branches(cylinder);
         
         %% Compute (and display) model attributes
         T = segment2.segments{1};
@@ -432,7 +438,6 @@ for h = 1:nd
             display_time(Time(11),sum(Time(1:11)),name(7,:),1)
           end
         end
-        disp('----------------------------------')
         
         %% Reconstruct the output "QSM"
         Date(2,:) = clock;
@@ -440,15 +445,13 @@ for h = 1:nd
         clear qsm
         qsm = struct('cylinder',{},'branch',{},'treedata',{},'rundata',{},...
           'pmdistance',{},'triangulation',{});
-        % Remove "ChildCyls" and "CylsInSegment" fields from "cylinder":
-        cylinder = rmfield(cylinder,{'ChildCyls','CylsInSegment'});
         qsm(1).cylinder = cylinder;
         qsm(1).branch = branch;
         qsm(1).treedata = treedata;
         qsm(1).rundata.inputs = Inputs;
         qsm(1).rundata.time = single(Time);
         qsm(1).rundata.date = single(Date);
-        qsm(1).rundata.version = '2.4.0';
+        qsm(1).rundata.version = '2.4.1';
         if inputs.Dist
           qsm(1).pmdistance = pmdis;
         end
@@ -485,7 +488,7 @@ for h = 1:nd
           end
           save_model_text(qsm,str)
         end
-        
+
         %% Plot models and segmentations
         if inputs.plot >= 1
           if inputs.Tria
