@@ -17,10 +17,10 @@ function cyl = least_squares_cylinder(P,cyl0,weight,Q)
 % ---------------------------------------------------------------------
 % LEAST_SQUARES_CYLINDER.M   Least-squares cylinder using Gauss-Newton.
 %
-% Version 1.3.0
-% Latest update     14 July 2020
+% Version 2.0.0
+% Latest update     5 Oct 2021
 %
-% Copyright (C) 2013-2020 Pasi Raumonen
+% Copyright (C) 2013-2021 Pasi Raumonen
 % ---------------------------------------------------------------------
 % Input    
 % P         Point cloud
@@ -36,13 +36,21 @@ function cyl = least_squares_cylinder(P,cyl0,weight,Q)
 %   axis        Axis direction of the cylinder (1 x 3) 
 %   mad         Mean absolute distance between points and cylinder surface
 %   SurfCov     Relative cover of the cylinder's surface by the points 
-%   SurfCovDis  Mean point distances to the axis from the layer-sectors
-%   SurfCovVol  Estimate of cylinder's volume based on radii given by "SurfCovDis"
 %   dist        Radial distances from the points to the cylinder (m x 1) 
 %   conv        If conv = 1, the algorithm has converged 
 %   rel         If rel = 1, the algorithm has reliable answer in terms of
 %                   matrix inversion with a good enough condition number
 % ---------------------------------------------------------------------
+
+% Changes from version 1.3.0 to 2.0.0, 5 Oct 2021:  
+% 1) Included the Gauss-Newton iterations into this function (removed the 
+%      call to nlssolver function)
+% 2) Changed how the updata step is solved from the Jacobian
+% 3) Simplified some expressions and added comments
+% 4) mad is computed only from the points along the cylinder length in the
+%     case of the optional input "Q" is given.  
+% 5) Changed the surface coverage estimation by filtering out points whose 
+%     distance to the axis is less than 80% of the radius 
 
 % Changes from version 1.2.0 to 1.3.0, 14 July 2020:  
 % 1) Changed the input parameters of the cylinder to the struct format.
@@ -67,26 +75,72 @@ function cyl = least_squares_cylinder(P,cyl0,weight,Q)
 % Changes from version 1.0.0 to 1.1.0, 3 Oct 2019:  
 % 1) Bug fix: --> "Point = Rot0'*([par(1) par(2) 0]')..."
 
-% "Resolution level" for computing surface coverage
-res = 0.03;
 
-% Transform the data to close to standard position via a rotation 
-% followed by a translation 
+%% Initialize data and values
+res = 0.03; % "Resolution level" for computing surface coverage
+maxiter = 50; % maximum number of Gauss-Newton iterations
+iter = 0; 
+conv = false; % Did the iterations converge
+rel = true; % Are the results reliable (condition number was not very bad)
+if nargin == 2
+  NoWeights = true; % No point weight given for the fitting
+else
+  NoWeights = false;
+end
+
+% Transform the data to close to standard position via a translation  
+% followed by a rotation
 Rot0 = rotate_to_z_axis(cyl0.axis);
-Point1 = Rot0*cyl0.start';
-Pt = P*Rot0'-Point1';
+Pt = (P-cyl0.start)*Rot0';
 
-% Initial estimates and tolerance information
+% Initial estimates
 par = [0 0 0 0 cyl0.radius]'; 
 
-% Gauss-Newton algorithm to find estimate of rotation-translation 
-% parameters that transform the data so that the best-fit circle is 
-% one in standard position
-if nargin == 2
-    [par,dist,conv,rel] = nlssolver(par,Pt);
-else
-    [par,dist,conv,rel] = nlssolver(par,Pt,weight);
+
+%% Gauss-Newton algorithm 
+% find estimate of rotation-translation-radius parameters that transform
+% the data so that the best-fit cylinder is one in standard position
+while iter < maxiter && ~conv && rel
+  
+  %% Calculate the distances and Jacobian
+  if NoWeights
+    [d0,J] = func_grad_cylinder(par,Pt);
+  else
+    [d0,J] = func_grad_cylinder(par,Pt,weight);
+  end
+  
+  %% Calculate update step
+  SS0 = norm(d0); % Squared sum of the distances
+  % solve for the system of equations:
+  % par(i+1) = par(i) - (J'J)^(-1)*J'd0(par(i))
+  A = J'*J;
+  b = J'*d0;
+  warning off
+  p = -A\b; % solve for the system of equations
+  warning on
+  par = par+p; % update the parameters
+
+  %% Check reliability
+  if rcond(-A) < 10000*eps
+    rel = false;
+  end
+  
+  %% Check convergence:
+  % The distances with the new parameter values:
+  if NoWeights
+    dist = func_grad_cylinder(par,Pt);
+  else
+    dist = func_grad_cylinder(par,Pt,weight);
+  end
+  SS1 = norm(dist); % Squared sum of the distances
+  if abs(SS0-SS1) < 1e-4
+    conv = true;
+  end
+  
+  iter = iter + 1;
 end
+
+%% Compute the cylinder parameters and other outputs
 cyl.radius = single(par(5)); % radius
 
 % Inverse transformation to find axis and point on axis 
@@ -97,38 +151,38 @@ Point = Rot0'*([par(1) par(2) 0]')+cyl0.start'; % axis point
 
 % Compute the start, length and mad, translate the axis point to the 
 % cylinder's bottom:
-% If the fifth input (point cloud Q) is given, use it for the start, length, 
-% mad, and SurfCov
+% If the fourth input (point cloud Q) is given, use it for the start, 
+% length, mad, and SurfCov
 if nargin == 4
+  if size(Q,1) > 5
     P = Q;
+  end
 end
-H = P*Axis;
+H = P*Axis; % heights along the axis
 hmin = min(H);
 cyl.length = single(abs(max(H)-hmin));
 hpoint = Axis'*Point;
 Point = Point-(hpoint-hmin)*Axis; % axis point at the cylinder's bottom
 cyl.start = single(Point');
 cyl.axis = single(Axis');
-cyl.mad = single(average(abs(dist))); % mean absolute distance
-%cyl.dist = single(dist);
+% Compute mad for the points along the cylinder length:
+if nargin >= 6
+  I = weight == max(weight);
+  cyl.mad = single(average(abs(dist(I)))); % mean absolute distance
+else
+  cyl.mad = single(average(abs(dist))); % mean absolute distance
+end
 cyl.conv = conv;
 cyl.rel = rel;
 
 % Compute SurfCov, minimum 3*8 grid
 if ~any(isnan(Axis)) && ~any(isnan(Point)) && rel && conv
-    nl = ceil(cyl.length/res);
-    nl = max(nl,3);
-    ns = ceil(2*pi*cyl.radius/res);
-    ns = max(ns,8);
-    ns = min(36,ns);
-    SurfCov = surface_coverage(P,Axis,Point,nl,ns);
-    %[SurfCov,Dis,CylVol] = surface_coverage(P,Axis,Point,nl,ns);
-    
-    cyl.SurfCov = single(SurfCov);
-    %cyl.SurfCovVol = single(CylVol);
-    %cyl.SurfCovDis = single(Dis);
+  nl = max(3,ceil(cyl.length/res));
+  ns = ceil(2*pi*cyl.radius/res);
+  ns = min(36,max(ns,8));
+  SurfCov = surface_coverage(P,Axis',Point',nl,ns,0.8*cyl.radius);
+  
+  cyl.SurfCov = single(SurfCov);
 else
-    cyl.SurfCov = single(0);
-    %cyl.SurfCovVol = single(0);
-    %cyl.SurfCovDis = single(0);
+  cyl.SurfCov = single(0);
 end
