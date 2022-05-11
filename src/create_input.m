@@ -112,7 +112,7 @@ inputs.savetxt = 1;
 % 2 = plots the QSM, the segmentated point cloud and distributions, 
 % 1 = plots the QSM and the segmentated point cloud
 % 0 = plots nothing
-inputs.plot = 1; 
+inputs.plot = 2; 
 % What are displayed during the reconstruction: 2 = display all; 
 % 1 = display name, parameters and distances; 0 = display only the name:
 inputs.disp = 2; 
