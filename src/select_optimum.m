@@ -1079,16 +1079,18 @@ for t = 1:nt % trees
   for i = 1:3 % inputs
     dI = abs(max(In(:,i),[],2)-OptIn(t,i));
     dImin = min(dI(dI > 0)); % the minimum nonzero absolute change in inputs
-    dI = dImin/OptIn(t,i); % relative change in the attributes
-    K1 = abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) < dImin+0.0001;
-    K = K1 & abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) > 0.0001;
-    K = ind(K); % the inputs the closest to the optimal input
-    J = all(In(K,A(i,:)) == OptIn(t,A(i,:)),2);
-    J = K(J); % input i the closest to the optimal and the other two equal the optimal
-    dD = max(abs(D(:,J)-D(:,I)),[],2);
-    dD = dD./D(:,I); % relative change in the input
-    d = dD/dI*100; % relative sensitivity as a percentage
-    Sensi(t,:,i) = round(100*d)/100;
+    if ~isempty(dImin)
+      dI = dImin/OptIn(t,i); % relative change in the attributes
+      K1 = abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) < dImin+0.0001;
+      K = K1 & abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) > 0.0001;
+      K = ind(K); % the inputs the closest to the optimal input
+      J = all(In(K,A(i,:)) == OptIn(t,A(i,:)),2);
+      J = K(J); % input i the closest to the optimal and the other two equal the optimal
+      dD = max(abs(D(:,J)-D(:,I)),[],2);
+      dD = dD./D(:,I); % relative change in the input
+      d = dD/dI*100; % relative sensitivity as a percentage
+      Sensi(t,:,i) = round(100*d)/100;
+    end
   end
 end
 % End of function
