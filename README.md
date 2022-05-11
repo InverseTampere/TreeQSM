@@ -5,9 +5,15 @@
 
 [![DOI](https://zenodo.org/badge/100592530.svg)](https://zenodo.org/badge/latestdoi/100592530)
 
+![QSM image](https://github.com/InverseTampere/TreeQSM/blob/master/Manual/fig_point_cloud_qsm.png)
+
+
+### Description
+
 TreeQSM is a modelling method that reconstructs quantitative structure models (QSMs) for trees from point clouds. A QSM consists of a hierarchical collection of cylinders estimating topological, geometrical and volumetric details of the woody structure of the tree. The input point cloud, which is usually produced by a terrestrial laser scanner, must contain only one tree, which is intended to be modelled, but the point cloud may contain also some points from the ground and understory. Moreover, the point cloud should not contain significant amount of noise or points from leaves as these are interpreted as points from woody parts of the tree and can therefore lead to erroneous results. Much more details of the method and QSMs can be found from the manual that is part of the code distribution.
 
-![QSM image](https://github.com/InverseTampere/TreeQSM/blob/master/Manual/fig_point_cloud_qsm.png)
+The TreeQSM is written in Matlab.
+The main function is _treeqsm.m_, which takes in a point cloud and a structure array specifying the needed parameters. Refer to the manual or the help documentation of a particular function for further details.
 
 ### References
 
@@ -22,8 +28,6 @@ de Tanago Menaca et al. 2017, Methods in Ecology and Evolution https://besjourna
 Åkerblom et al. 2018, Interface Focus http://dx.doi.org/10.1098/rsfs.2017.0045   
 Disney et al. 2018, Interface Focus http://dx.doi.org/10.1098/rsfs.2017.0048   
 
-The TreeQSM is written in Matlab.
-The main function is _treeqsm.m_, which takes in a point cloud and a structure array specifying the needed parameters. Refer to the manual or the help documentation of a particular function for further details.
 
 ### Quick guide
 
