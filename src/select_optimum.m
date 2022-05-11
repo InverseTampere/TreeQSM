@@ -206,6 +206,19 @@ function [TreeData,OptModels,OptInputs,OptQSM] = ...
 %    in "OptInputs" output as one of the fields.
 % 2) Added OptQSM as one of the outputs
 
+%% Select the metric based on the input
+if nargin > 1
+  [met,Metric] = select_metric(Metric);
+else
+  met = 1;
+  Metric = 'all_mean_dis';
+end
+
+
+% The metric for selecting the optimal single model from the models with
+% the optimal inputs is the mean point-model-distance.
+best = 1;
+
 %% Collect data
 % Find the first non-empty model
 i = 1;
@@ -219,186 +232,6 @@ while numel(QSMs(i).treedata.(names{n})) == 1
   n = n+1;
 end
 n = n-1;
-
-% Collect data:
-[treedata,inputs,TreeId,Data] = collect_data(QSMs,names,n);
-
-TreeIds = unique(TreeId(:,1));
-nt = length(TreeIds); % number of trees
-
-%% Determine the input parameter values
-InputParComb = unique(inputs,'rows'); % Input parameter combinations
-IV = cell(3,1);
-N = zeros(3,1);
-for i = 1:3
-  I = unique(InputParComb(:,i));
-  IV{i} = I;
-  N(i) = length(I);
-end
-
-%% Select the metric based on the input
-if nargin > 1
-  [met,Metric] = select_metric(Metric);
-else
-  met = 1;
-  Metric = 'all_mean_dis';
-end
-
-% The metric for selecting the optimal single model from the models with
-% the optimal inputs is the mean point-model-distance.
-best = 1;
-
-%% Determine metric-value for each input
-% (average over number of models with the same inputs)
-input = cell(nt,N(1)*N(2)*N(3));
-distM = zeros(nt,N(1)*N(2)*N(3)); % average distances or volume stds
-% average treedata and inputs for each tree-input-combination:
-TreeDataAll = zeros(nt,N(1)*N(2)*N(3),n);
-Inputs = zeros(nt,N(1)*N(2)*N(3),3);
-for t = 1:nt
-  I = TreeId(:,1) == TreeIds(t);
-  b = 0;
-  for d = 1:N(1) % PatchDiam1
-    J = abs(inputs(:,1)-IV{1}(d)) < 0.0001;
-    for a = 1:N(2) % PatchDiam2Min
-      K = abs(inputs(:,2)-IV{2}(a)) < 0.0001;
-      for i = 1:N(3) % PatchDiam2Max
-        L = abs(inputs(:,3)-IV{3}(i)) < 0.0001;
-
-        % Select models for the tree "t" with the same inputs:
-        T = I&J&K&L;
-        b = b+1;
-        input{t,b} = [d a i];
-
-        % Compute the metric value;
-        D = compute_metric_value(met,T,treedata,Data);
-        distM(t,b) = D;
-
-        % Collect the data and inputs
-        TreeDataAll(t,b,:) = mean(treedata(:,T),2);
-        Inputs(t,b,:) = [IV{1}(d) IV{2}(a) IV{3}(i)];
-      end
-    end
-  end
-end
-
-%% Determine the optimal inputs and models
-ninputs = prod(N)
-OptIn = zeros(nt,3*min(ninputs,3)); % Optimal input values
-OptDist = zeros(nt,min(ninputs,3)); % Smallest metric values
-for i = 1:nt
-  [d,J] = sort(distM(i,:));
-  O = input{i,J(1)};
-  OptIn(i,1:3) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
-  OptDist(i,1) = d(1);
-  if ninputs > 1
-    O = input{i,J(2)};
-    OptIn(i,4:6) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
-    OptDist(i,2) = d(2);
-    if ninputs > 2
-      O = input{i,J(3)};
-      OptIn(i,7:9) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
-      OptDist(i,3) = d(3);
-    end
-  end
-end
-
-% Select the optimal models for each tree: In the case of multiple models
-% with same inputs, select the one model with the optimal inputs that
-% has the minimum metric value.
-% Indexes of the optimal single models in QSMs:
-OptModel = zeros(nt,min(ninputs,3));
-% The indexes of models in QSMs with the optimal inputs (col 1)
-% and the indexes of the optimal single models (col 2):
-OptModels = cell(nt,2);
-% Mean of tree data for each tree computed from the optimal models:
-DataM = zeros(n,nt);
-DataS = zeros(n,nt); % Standard deviation of tree data for each tree
-DataM2 = DataM;     DataM3 = DataM;
-DataS2 = DataS;     DataS3 = DataS;
-IndAll = (1:1:size(TreeId,1))';
-for t = 1:nt
-  I = TreeId(:,1) == TreeIds(t);
-  J = abs(inputs(:,1)-OptIn(t,1)) < 0.0001;
-  K = abs(inputs(:,2)-OptIn(t,2)) < 0.0001;
-  L = abs(inputs(:,3)-OptIn(t,3)) < 0.0001;
-  T = I&J&K&L;
-  ind = IndAll(T);
-  [~,T] = min(Data.CylDist(ind,best));
-  OptModel(t,1) = ind(T);
-  OptModels{t,1} = ind;
-  OptModels{t,2} = ind(T);
-  DataM(:,t) = mean(treedata(:,ind),2);
-  DataS(:,t) = std(treedata(:,ind),[],2);
-  if ninputs > 1
-    J = abs(inputs(:,1)-OptIn(t,4)) < 0.0001;
-    K = abs(inputs(:,2)-OptIn(t,5)) < 0.0001;
-    L = abs(inputs(:,3)-OptIn(t,6)) < 0.0001;
-    T = I&J&K&L;
-    ind = IndAll(T);
-    [~,T] = min(Data.CylDist(ind,best));
-    OptModel(t,2) = ind(T);
-    DataM2(:,t) = mean(treedata(:,ind),2);
-    DataS2(:,t) = std(treedata(:,ind),[],2);
-    if ninputs > 2
-      J = abs(inputs(:,1)-OptIn(t,7)) < 0.0001;
-      K = abs(inputs(:,2)-OptIn(t,8)) < 0.0001;
-      L = abs(inputs(:,3)-OptIn(t,9)) < 0.0001;
-      T = I&J&K&L;
-      ind = IndAll(T);
-      [~,T] = min(Data.CylDist(ind,best));
-      OptModel(t,3) = ind(T);
-      DataM3(:,t) = mean(treedata(:,ind),2);
-      DataS3(:,t) = std(treedata(:,ind),[],2);
-    end
-  end
-end
-if ninputs > 1
-  OptModel2 = IndAll(OptModel(:,2));
-  if ninputs > 2
-    OptModel3 = IndAll(OptModel(:,3));
-  end
-end
-OptModel = IndAll(OptModel(:,1));
-for i = 1:nt
-  OptInputs(i) = QSMs(OptModel(i,1)).rundata.inputs;
-  if ninputs > 1
-    OI2(i) = QSMs(OptModel2(i)).rundata.inputs;
-    if ninputs > 2
-      OI3(i) = QSMs(OptModel3(i)).rundata.inputs;
-    end
-  end
-end
-for i = 1:nt
-  OptInputs(i).metric = Metric;
-end
-OptQSM = QSMs(OptModel);
-DataCV = DataS./DataM*100; % Coefficient of variation
-if ninputs > 1
-  DataCV2 = DataS2./DataM2*100; % Coefficient of variation
-  if ninputs > 2
-    DataCV3 = DataS3./DataM3*100; % Coefficient of variation
-  end
-end
-
-%% Display some data about optimal models
-% Decrease the number on non-zero decimals
-for j = 1:nt
-  DataM(:,j) = change_precision(DataM(:,j));
-  DataS(:,j) = change_precision(DataS(:,j));
-  DataCV(:,j) = change_precision(DataCV(:,j));
-  if ninputs > 1
-    DataM2(:,j) = change_precision(DataM2(:,j));
-    DataS2(:,j) = change_precision(DataS2(:,j));
-    DataCV2(:,j) = change_precision(DataCV2(:,j));
-    if ninputs > 2
-      DataM3(:,j) = change_precision(DataM3(:,j));
-      DataS3(:,j) = change_precision(DataS3(:,j));
-      DataCV3(:,j) = change_precision(DataCV3(:,j));
-    end
-  end
-end
-
 Names = names(1:n);
 L = max(cellfun('length',Names))+1;
 for i = 1:n
@@ -407,11 +240,191 @@ for i = 1:n
   Names{i} = name;
 end
 
+% Collect data:
+[treedata,inputs,TreeId,Data] = collect_data(QSMs,names,n);
+
+% Trees and their unique IDs
+TreeIds = unique(TreeId(:,1));
+nt = length(TreeIds); % number of trees
+
+DataM = zeros(n,nt);
+DataS = zeros(n,nt); % Standard deviation of tree data for each tree
+DataM2 = DataM;     DataM3 = DataM;
+DataS2 = DataS;     DataS3 = DataS;
+
+OptIn = zeros(nt,9); % Optimal input values
+OptDist = zeros(nt,9); % Smallest metric values
+
+
+% average treedata and inputs for each tree-input-combination:
+TreeDataAll = zeros(nt,5*5*5,n);
+Inputs = zeros(nt,5*5*5,3);
+
+IndAll = (1:1:size(TreeId,1))';
+
+% Indexes of the optimal single models in QSMs:
+OptModel = zeros(nt,3);
+% The indexes of models in QSMs with the optimal inputs (col 1)
+% and the indexes of the optimal single models (col 2):
+OptModels = cell(nt,2);
+
+NInputs = zeros(nt,1);
+
+%% Process each tree separately
+for tree = 1:nt
+  % Select the models for the tree
+  Models = TreeId(:,1) == TreeIds(tree);
+
+  %% Determine the input parameter values
+  InputParComb = unique(inputs(Models,:),'rows'); % Input parameter combinations
+  IV = cell(3,1);
+  N = zeros(3,1);
+  for i = 1:3
+    I = unique(InputParComb(:,i));
+    IV{i} = I;
+    N(i) = length(I);
+  end
+
+  %% Determine metric-value for each input
+  % (average over number of models with the same inputs)
+  input = cell(1,N(1)*N(2)*N(3));
+  distM = zeros(1,N(1)*N(2)*N(3)); % average distances or volume stds
+  b = 0;
+  for d = 1:N(1) % PatchDiam1
+    J = abs(inputs(:,1)-IV{1}(d)) < 0.0001;
+    for a = 1:N(2) % PatchDiam2Min
+      K = abs(inputs(:,2)-IV{2}(a)) < 0.0001;
+      for i = 1:N(3) % PatchDiam2Max
+        L = abs(inputs(:,3)-IV{3}(i)) < 0.0001;
+
+        % Select models for the tree with the same inputs:
+        T = Models & J & K & L;
+        b = b+1;
+        input{b} = [d a i];
+
+        % Compute the metric value;
+        D = compute_metric_value(met,T,treedata,Data);
+        distM(b) = D;
+
+        % Collect the data and inputs
+        TreeDataAll(tree,b,:) = mean(treedata(:,T),2);
+        Inputs(tree,b,:) = [IV{1}(d) IV{2}(a) IV{3}(i)];
+      end
+    end
+  end
+
+  %% Determine the optimal inputs and models
+  ninputs = prod(N);
+  NInputs(tree) = ninputs;
+  [d,J] = sort(distM);
+  O = input{J(1)};
+  OptIn(tree,1:3) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
+  OptDist(tree,1) = d(1);
+  if ninputs > 1
+    O = input{J(2)};
+    OptIn(tree,4:6) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
+    OptDist(tree,2) = d(2);
+    if ninputs > 2
+      O = input{J(3)};
+      OptIn(tree,7:9) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
+      OptDist(tree,3) = d(3);
+    end
+  end
+
+  %% Mean of tree data for each tree computed from the optimal models:
+  % Select the optimal models for each tree: In the case of multiple models
+  % with same inputs, select the one model with the optimal inputs that
+  % has the minimum metric value.
+  J = abs(inputs(:,1)-OptIn(tree,1)) < 0.0001;
+  K = abs(inputs(:,2)-OptIn(tree,2)) < 0.0001;
+  L = abs(inputs(:,3)-OptIn(tree,3)) < 0.0001;
+  T = Models & J & K & L;
+  ind = IndAll(T);
+  [~,T] = min(Data.CylDist(ind,best));
+  OptModel(tree,1) = ind(T);
+  OptModels{tree,1} = ind;
+  OptModels{tree,2} = ind(T);
+  DataM(:,tree) = mean(treedata(:,ind),2);
+  DataS(:,tree) = std(treedata(:,ind),[],2);
+  if ninputs > 1
+    J = abs(inputs(:,1)-OptIn(tree,4)) < 0.0001;
+    K = abs(inputs(:,2)-OptIn(tree,5)) < 0.0001;
+    L = abs(inputs(:,3)-OptIn(tree,6)) < 0.0001;
+    T = Models & J & K & L;
+    ind = IndAll(T);
+    [~,T] = min(Data.CylDist(ind,best));
+    OptModel(tree,2) = ind(T);
+    DataM2(:,tree) = mean(treedata(:,ind),2);
+    DataS2(:,tree) = std(treedata(:,ind),[],2);
+    if ninputs > 2
+      J = abs(inputs(:,1)-OptIn(tree,7)) < 0.0001;
+      K = abs(inputs(:,2)-OptIn(tree,8)) < 0.0001;
+      L = abs(inputs(:,3)-OptIn(tree,9)) < 0.0001;
+      T = Models & J & K & L;
+      ind = IndAll(T);
+      [~,T] = min(Data.CylDist(ind,best));
+      OptModel(tree,3) = ind(T);
+      DataM3(:,tree) = mean(treedata(:,ind),2);
+      DataS3(:,tree) = std(treedata(:,ind),[],2);
+    end
+  end
+
+  % Decrease the number on non-zero decimals
+  DataM(:,tree) = change_precision(DataM(:,tree));
+  DataS(:,tree) = change_precision(DataS(:,tree));
+  if ninputs > 1
+    DataM2(:,tree) = change_precision(DataM2(:,tree));
+    DataS2(:,tree) = change_precision(DataS2(:,tree));
+    if ninputs > 2
+      DataM3(:,tree) = change_precision(DataM3(:,tree));
+      DataS3(:,tree) = change_precision(DataS3(:,tree));
+    end
+  end
+
+  % Define the output "OptInputs"
+  OptM = IndAll(OptModel(tree,1));
+  OptInputs(tree) = QSMs(OptM).rundata.inputs;
+  if ninputs > 1
+    OptM2 = IndAll(OptModel(tree,2));
+    OI2(tree) = QSMs(OptM2).rundata.inputs;
+    if ninputs > 2
+      OptM3 = IndAll(OptModel(tree,3));
+      OI3(tree) = QSMs(OptM3).rundata.inputs;
+    end
+  end
+
+end
+N = max(NInputs);
+TreeDataAll = TreeDataAll(:,1:N,:);
+Inputs = Inputs(:,1:N,:);
+
+% Compute Coefficient of variation for the data
+OptModel = IndAll(OptModel(:,1));
+OptQSM = QSMs(OptModel);
+DataCV = DataS./DataM*100; % Coefficient of variation
+if ninputs > 1
+  DataCV2 = DataS2./DataM2*100; % Coefficient of variation
+  if ninputs > 2
+    DataCV3 = DataS3./DataM3*100; % Coefficient of variation
+  end
+end
+% Decrease the number on non-zero decimals
+for j = 1:nt
+  DataCV(:,j) = change_precision(DataCV(:,j));
+  if ninputs > 1
+    DataCV2(:,j) = change_precision(DataCV2(:,j));
+    if ninputs > 2
+      DataCV3(:,j) = change_precision(DataCV3(:,j));
+    end
+  end
+end
+
+%% Display some data about optimal models
 % Display optimal inputs, model and attributes for each tree
 for t = 1:nt
   disp('-------------------------------')
   disp(['  Tree: ',num2str(OptInputs(t).tree),', ',OptInputs(t).name])
-  if ninputs == 1
+  if NInputs(t) == 1
     disp(['    Metric: ',Metric])
     disp(['    Metric value:  ',num2str(1000*OptDist(t,1))])
     disp(['    Optimal inputs:  PatchDiam1 = ',...
@@ -429,10 +442,10 @@ for t = 1:nt
         DataM(i,t) DataS(i,t) DataCV(i,t)])]);
       disp(str)
     end
-  elseif ninputs == 2
+  elseif NInputs(t) == 2
     disp('    The best two cases:')
     disp(['    Metric: ',Metric])
-    disp(['    Metric values:  ',num2str(OptDist(t,:))])
+    disp(['    Metric values:  ',num2str(OptDist(t,1:2))])
     disp(['            inputs:  PatchDiam1 = ',...
       num2str([OptInputs(t).PatchDiam1 OI2(t).PatchDiam1])])
     disp(['                  PatchDiam2Min = ',...
@@ -448,10 +461,10 @@ for t = 1:nt
         DataS(i,t) DataCV(i,t) DataM2(i,t)])]);
       disp(str)
     end
-  elseif ninputs > 2
+  elseif NInputs(t) > 2
     disp('    The best three cases:')
     disp(['    Metric: ',Metric])
-    disp(['    Metric values:  ',num2str(OptDist(t,:))])
+    disp(['    Metric values:  ',num2str(OptDist(t,1:3))])
     disp(['            inputs:  PatchDiam1 = ',num2str([...
       OptInputs(t).PatchDiam1 OI2(t).PatchDiam1 OI3(t).PatchDiam1])])
     disp(['                  PatchDiam2Min = ',num2str([...
@@ -480,7 +493,7 @@ for t = 1:nt
 end
 
 %% Compute the sensitivity of the tree attributes relative to PatchDiam-parameters
-Sensi = sensitivity_analysis(TreeDataAll,TreeId,Inputs,OptIn);
+Sensi = sensitivity_analysis(TreeDataAll,TreeId,Inputs,OptIn,NInputs);
 
 %% Generate TreeData sructure for optimal models
 clear TreeData
@@ -490,6 +503,11 @@ for t = 1:nt
     TreeData(t).(names{i}) = [DataM(i,t) DataS(i,t) squeeze(Sensi(t,i,:))'];
   end
   TreeData(t).name = OptInputs(t).name;
+end
+
+%% Add the metric for the "OptInputs"
+for i = 1:nt
+  OptInputs(i).metric = Metric;
 end
 
 %% Save results
@@ -1049,7 +1067,7 @@ end
 end
 
 
-function Sensi = sensitivity_analysis(TreeDataAll,TreeId,Inputs,OptIn)
+function Sensi = sensitivity_analysis(TreeDataAll,TreeId,Inputs,OptIn,NInputs)
 
 % Computes the sensitivity of tree attributes (e.g. total volume) to the
 % changes of input parameter, the PatchDiam parameters, values. The
@@ -1070,16 +1088,16 @@ nt = length(TreeIds); % number of trees
 A = [2 3; 1 3; 1 2]; % Keep other two inputs constant and let one varie
 Sensi = zeros(nt,size(TreeDataAll,3),3); % initialization of the output
 for t = 1:nt % trees
-  D = squeeze(TreeDataAll(t,:,:))'; % Select the attributes for the tree
-  In = squeeze(Inputs(t,:,:)); % Select the inputs for the tree
+  D = squeeze(TreeDataAll(t,1:NInputs(t),:))'; % Select the attributes for the tree
+  In = squeeze(Inputs(t,1:NInputs(t),:)); % Select the inputs for the tree
   n = size(In,1); % number of different input-combinations
   I = all(In == OptIn(t,1:3),2); % Which data are with the optimal inputs
   ind = (1:1:n)';
   I = ind(I);
   for i = 1:3 % inputs
-    dI = abs(max(In(:,i),[],2)-OptIn(t,i));
-    dImin = min(dI(dI > 0)); % the minimum nonzero absolute change in inputs
-    if ~isempty(dImin)
+    if length(unique(In(:,i))) > 1
+      dI = abs(max(In(:,i),[],2)-OptIn(t,i));
+      dImin = min(dI(dI > 0)); % the minimum nonzero absolute change in inputs
       dI = dImin/OptIn(t,i); % relative change in the attributes
       K1 = abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) < dImin+0.0001;
       K = K1 & abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) > 0.0001;
