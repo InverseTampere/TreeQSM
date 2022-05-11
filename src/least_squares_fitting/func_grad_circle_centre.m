@@ -25,21 +25,21 @@ function [dist,J] = func_grad_circle_centre(P,par,weight)
 % Calculate the distances
 Vx = P(:,1)-par(1);
 Vy = P(:,2)-par(2);
-rt = sqrt(Vx.*Vx + Vy.*Vy);
+rt = sqrt(Vx.*Vx+Vy.*Vy);
 if nargin == 3
-    dist = weight.*(rt-par(3)); % Weighted distances to the circle
+  dist = weight.*(rt-par(3)); % Weighted distances to the circle
 else
-    dist = rt-par(3); % Distances to the circle
+  dist = rt-par(3); % Distances to the circle
 end
 
 % form the Jacobian matrix
 if nargout > 1
-    m = size(P, 1);
-    J = zeros(m,2);
-    J(:,1) = -Vx./rt;
-    J(:,2) = -Vy./rt;
-    % apply the weights
-    if nargin == 3
-        J = [weight.*J(:,1) weight.*J(:,2)];
-    end
+  m = size(P,1);
+  J = zeros(m,2);
+  J(:,1) = -Vx./rt;
+  J(:,2) = -Vy./rt;
+  % apply the weights
+  if nargin == 3
+    J = [weight.*J(:,1) weight.*J(:,2)];
+  end
 end
