@@ -2,17 +2,12 @@ function [d,V,h,B] = distances_to_line(Q,LineDirec,LinePoint)
 
 % Calculates the distances of the points, given in the rows of the
 % matrix Q, to the line defined by one of its point and its direction.
+% "LineDirec" must be a unit (1x3)-vector and LinePoint must be a (1x3)-vector.
+% 
+% Last update 8 Oct 2021
 
-if size(LineDirec,1) == 1
-    LineDirec = LineDirec';
-end
-LineDirec = LineDirec/norm(LineDirec);
-
-A = mat_vec_subtraction(Q,LinePoint);
-h = A*LineDirec;
-
-B = repmat(LineDirec',length(Q(:,1)),1);
-B = [h.*B(:,1) h.*B(:,2) h.*B(:,3)];
+A = Q-LinePoint;
+h = A*LineDirec';
+B = h*LineDirec;
 V = A-B;
-
 d = sqrt(sum(V.*V,2));
