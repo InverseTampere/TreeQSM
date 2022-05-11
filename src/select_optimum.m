@@ -1,29 +1,29 @@
 % This file is part of TREEQSM.
-% 
+%
 % TREEQSM is free software: you can redistribute it and/or modify
 % it under the terms of the GNU General Public License as published by
 % the Free Software Foundation, either version 3 of the License, or
 % (at your option) any later version.
-% 
+%
 % TREEQSM is distributed in the hope that it will be useful,
 % but WITHOUT ANY WARRANTY; without even the implied warranty of
 % MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 % GNU General Public License for more details.
-% 
+%
 % You should have received a copy of the GNU General Public License
 % along with TREEQSM.  If not, see <http://www.gnu.org/licenses/>.
 
 function [TreeData,OptModels,OptInputs,OptQSM] = ...
-    select_optimum(QSMs,Metric,savename)
+  select_optimum(QSMs,Metric,savename)
 
 % ---------------------------------------------------------------------
-% SELECT_OPTIMUM.M       Selects optimum models based on point-cylinder model 
+% SELECT_OPTIMUM.M       Selects optimum models based on point-cylinder model
 %                           distances or standard deviations of attributes
 %
-% Version 1.3.0
-% Latest update     4 Aug 2020
+% Version 1.4.0 
+% Latest update     2 May 2022
 %
-% Copyright (C) 2013-2020 Pasi Raumonen
+% Copyright (C) 2013-2022 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % Works for single or multiple tree cases where the input QSMs contains
@@ -31,20 +31,20 @@ function [TreeData,OptModels,OptInputs,OptQSM] = ...
 % with the same inputs. Allows the user to select from 34 different metrics
 % for the optimization. These include average point-model distances from
 % all, trunk, branch, 1st-order branch and 2nd-order branch cylinders plus
-% some combinations where e.g. "mean trunk and mean branch" or "mean trunk 
-% and mean 1st-order branch" point-model distances are added together. 
+% some combinations where e.g. "mean trunk and mean branch" or "mean trunk
+% and mean 1st-order branch" point-model distances are added together.
 % Similarly for the maximum point-model distances and the sums of mean and
-% the maximum distances. 
-%   The difference between "all" and "trunk and branch" is that "all" 
-% is the average of all cylinder distances which usually emphasizes 
+% the maximum distances.
+%   The difference between "all" and "trunk and branch" is that "all"
+% is the average of all cylinder distances which usually emphasizes
 % branch cylinder as there usually much more those, whereas "trunk and branch"
-% gives equal weight for trunk and branch cylinders. 
-%   The other options for metric are based on minimizing the standard deviations 
-% of volumes (total, trunk, branch, trunk+branch which have equal emphasis 
-% between trunk and branches), lengths (trunk, branches) or total number of 
-% branches. Here the idea is that if the variance (standard deviation) of 
-% some attribute between models with the same inputs is small, then it 
-% indicates some kind of robustness which might indicate that the inputs 
+% gives equal weight for trunk and branch cylinders.
+%   The other options for metric are based on minimizing the standard deviations
+% of volumes (total, trunk, branch, trunk+branch which have equal emphasis
+% between trunk and branches), lengths (trunk, branches) or total number of
+% branches. Here the idea is that if the variance (standard deviation) of
+% some attribute between models with the same inputs is small, then it
+% indicates some kind of robustness which might indicate that the inputs
 % are close to optimal.
 %   The optimal single model out of the models with the optimal inputs is
 % selected based on the minimum mean point-model-distance.
@@ -108,7 +108,7 @@ function [TreeData,OptModels,OptInputs,OptQSM] = ...
 %           'branch_vol_ord6_max' = max difference in volume of 1-6 branch orders
 %           'branch_are_ord6_max' = max difference in area of 1-6 branch orders
 %           'branch_len_ord6_max' = max difference in length of 1-6 branch orders
-%           'branch_num_ord6_max' = max difference in number of 1-6 branch orders   
+%           'branch_num_ord6_max' = max difference in number of 1-6 branch orders
 %           CYLINDER DISTRIBUTION METRICS:
 %           'cyl_vol_dia10_mean') = mean diff. in volume of 1-10cm diam cyl classes
 %           'cyl_are_dia10_mean') = mean diff. in area of 1-10cm diam cyl classes
@@ -128,7 +128,7 @@ function [TreeData,OptModels,OptInputs,OptQSM] = ...
 %           'cyl_vol_zen_max') = max diff. in volume of cyl zenith distribution
 %           'cyl_are_zen_max') = max diff. in area of cyl zenith distribution
 %           'cyl_len_zen_max') = max diff. in length of cyl zenith distribution
-%           SURFACE COVERAGE METRICS: 
+%           SURFACE COVERAGE METRICS:
 %               metric to be minimized is 1-mean(surface_coverage) or 1-min(SC)
 %           'all_mean_surf' = mean surface coverage from (msc) all cylinders
 %           'trunk_mean_surf' = msc trunk cylinders,
@@ -153,14 +153,30 @@ function [TreeData,OptModels,OptInputs,OptQSM] = ...
 %
 % Outputs:
 % TreeData      Similar structure array as the "treedata" in QSMs but now each
-%               attribute contains the mean and std computed from the
-%               models with the optimal inputs. 
-% OptModels     Indexes of the models with the optimal inputs (column 1) and 
-%                   the index of the optimal single model (column 2) in 
-%                   "QSMs" for each tree 
-% OptInputs     The optimized input parameters for each tree
+%               attribute contains the mean and std computed from the models
+%               with the optimal inputs. Also contains the sensitivities
+%               for the inputs PatchDiam1, PatchDiam2Min, PatchDiam2Max.
+%               Thus for single number attributes (e.g. TotalVolume) there
+%               are five numbers [mean std sensi_PD1 sensi_PD2Min sensi_PD2Max]
+% OptModels     Indexes of the models with the optimal inputs (column 1) and
+%               the index of the optimal single model (column 2) in "QSMs" 
+%               for each tree
+% OptInputs     The optimal input parameters for each tree
 % OptQSMs       The single best QSM for each tree, OptQSMs = QSMs(OptModel);
 % ---------------------------------------------------------------------
+
+
+% Changes from version 1.3.1 to 1.4.0, 2 May 2022:
+% 1) Added estimation of (relative) sensitivity of the single number
+%    attributes in TreeData for the inputs PatchDiam1, PatchDiam2Min,
+%    PatchDiam2Max. Now TreeData contains also these values as the columns
+%    3 to 5.
+% 2) Corrected a small bug in the subfunction "collect_data" (assignment
+%    of values for "CylSurfCov(i,:)"). The bug caused error for QSMs whose
+%    maximum branch order is less than 2.
+% 3) Bug fix for 3 lines (caused error for some cases and for other cases
+%    the optimal single model was wrongly selected):
+%    [~,T] = min(dist(ind,best));  -->  [~,T] = min(Data.CylDist(ind,best));
 
 % Changes from version 1.2.0 to 1.3.0, 4 Aug 2020:
 % 1) Removed two inputs ("lcyl" and "FilRad") from the inputs to be
@@ -180,7 +196,7 @@ function [TreeData,OptModels,OptInputs,OptQSM] = ...
 % 1) Added the "name" of the point cloud from the inputs.name to the output
 %    TreeData as a field. Also now displays the name together with the tree
 %    number.
-% 2) TreeData contains now correctly fields ("location", "StemTaper", 
+% 2) TreeData contains now correctly fields ("location", "StemTaper",
 %    "VolumeBranchOrder", etc) from the Optimal QSMs.
 
 % Changes from version 1.0.0 to 1.1.0, 08 Oct 2019:
@@ -194,13 +210,13 @@ function [TreeData,OptModels,OptInputs,OptQSM] = ...
 % Find the first non-empty model
 i = 1;
 while isempty(QSMs(i).cylinder)
-    i = i+1;
+  i = i+1;
 end
 % Determine how many single-number attributes there are in treedata
 names = fieldnames(QSMs(i).treedata);
 n = 1;
 while numel(QSMs(i).treedata.(names{n})) == 1
-    n = n+1;
+  n = n+1;
 end
 n = n-1;
 
@@ -215,173 +231,180 @@ InputParComb = unique(inputs,'rows'); % Input parameter combinations
 IV = cell(3,1);
 N = zeros(3,1);
 for i = 1:3
-    I = unique(InputParComb(:,i));
-    IV{i} = I;
-    N(i) = length(I);
+  I = unique(InputParComb(:,i));
+  IV{i} = I;
+  N(i) = length(I);
 end
 
 %% Select the metric based on the input
 if nargin > 1
-    [met,Metric] = select_metric(Metric);
+  [met,Metric] = select_metric(Metric);
 else
-    met = 1;
-    Metric = 'all_mean_dis';
+  met = 1;
+  Metric = 'all_mean_dis';
 end
 
 % The metric for selecting the optimal single model from the models with
 % the optimal inputs is the mean point-model-distance.
 best = 1;
 
-%% Determine metric-value for each input 
+%% Determine metric-value for each input
 % (average over number of models with the same inputs)
 input = cell(nt,N(1)*N(2)*N(3));
 distM = zeros(nt,N(1)*N(2)*N(3)); % average distances or volume stds
+% average treedata and inputs for each tree-input-combination:
+TreeDataAll = zeros(nt,N(1)*N(2)*N(3),n);
+Inputs = zeros(nt,N(1)*N(2)*N(3),3);
 for t = 1:nt
-    I = TreeId(:,1) == TreeIds(t);
-    b = 0;
-    for d = 1:N(1) % PatchDiam1
-        J = abs(inputs(:,1)-IV{1}(d)) < 0.0001;
-        for a = 1:N(2) % PatchDiam2Min
-            K = abs(inputs(:,2)-IV{2}(a)) < 0.0001;
-            for i = 1:N(3) % PatchDiam2Max
-                L = abs(inputs(:,3)-IV{3}(i)) < 0.0001;
-                        
-                % Select models for the tree "t" with the same inputs:
-                T = I&J&K&L;
-                b = b+1;
-                input{t,b} = [d a i];
-                
-                % Compute the metric value;
-                D = compute_metric_value(met,T,treedata,Data);
-                distM(t,b) = D;
-            end
-        end
+  I = TreeId(:,1) == TreeIds(t);
+  b = 0;
+  for d = 1:N(1) % PatchDiam1
+    J = abs(inputs(:,1)-IV{1}(d)) < 0.0001;
+    for a = 1:N(2) % PatchDiam2Min
+      K = abs(inputs(:,2)-IV{2}(a)) < 0.0001;
+      for i = 1:N(3) % PatchDiam2Max
+        L = abs(inputs(:,3)-IV{3}(i)) < 0.0001;
+
+        % Select models for the tree "t" with the same inputs:
+        T = I&J&K&L;
+        b = b+1;
+        input{t,b} = [d a i];
+
+        % Compute the metric value;
+        D = compute_metric_value(met,T,treedata,Data);
+        distM(t,b) = D;
+
+        % Collect the data and inputs
+        TreeDataAll(t,b,:) = mean(treedata(:,T),2);
+        Inputs(t,b,:) = [IV{1}(d) IV{2}(a) IV{3}(i)];
+      end
     end
+  end
 end
 
 %% Determine the optimal inputs and models
-ninputs = prod(N);
+ninputs = prod(N)
 OptIn = zeros(nt,3*min(ninputs,3)); % Optimal input values
 OptDist = zeros(nt,min(ninputs,3)); % Smallest metric values
 for i = 1:nt
-    [d,J] = sort(distM(i,:));
-    O = input{i,J(1)};
-    OptIn(i,1:3) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
-    OptDist(i,1) = d(1);
-    if ninputs > 1
-        O = input{i,J(2)};
-        OptIn(i,4:6) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
-        OptDist(i,2) = d(2);
-        if ninputs > 2
-            O = input{i,J(3)};
-            OptIn(i,7:9) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
-            OptDist(i,3) = d(3);
-        end
+  [d,J] = sort(distM(i,:));
+  O = input{i,J(1)};
+  OptIn(i,1:3) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
+  OptDist(i,1) = d(1);
+  if ninputs > 1
+    O = input{i,J(2)};
+    OptIn(i,4:6) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
+    OptDist(i,2) = d(2);
+    if ninputs > 2
+      O = input{i,J(3)};
+      OptIn(i,7:9) = [IV{1}(O(1)) IV{2}(O(2)) IV{3}(O(3))];
+      OptDist(i,3) = d(3);
     end
+  end
 end
 
-% Select the optimal models for each tree: In the case of multiple models 
-% with same inputs, select the one model with the optimal inputs that 
+% Select the optimal models for each tree: In the case of multiple models
+% with same inputs, select the one model with the optimal inputs that
 % has the minimum metric value.
 % Indexes of the optimal single models in QSMs:
-OptModel = zeros(nt,min(ninputs,3)); 
-% The indexes of models in QSMs with the optimal inputs (col 1) 
+OptModel = zeros(nt,min(ninputs,3));
+% The indexes of models in QSMs with the optimal inputs (col 1)
 % and the indexes of the optimal single models (col 2):
-OptModels = cell(nt,2); 
+OptModels = cell(nt,2);
 % Mean of tree data for each tree computed from the optimal models:
-DataM = zeros(n,nt); 
+DataM = zeros(n,nt);
 DataS = zeros(n,nt); % Standard deviation of tree data for each tree
 DataM2 = DataM;     DataM3 = DataM;
 DataS2 = DataS;     DataS3 = DataS;
 IndAll = (1:1:size(TreeId,1))';
 for t = 1:nt
-    I = TreeId(:,1) == TreeIds(t);
-    J = abs(inputs(:,1)-OptIn(t,1)) < 0.0001;
-    K = abs(inputs(:,2)-OptIn(t,2)) < 0.0001;
-    L = abs(inputs(:,3)-OptIn(t,3)) < 0.0001;
+  I = TreeId(:,1) == TreeIds(t);
+  J = abs(inputs(:,1)-OptIn(t,1)) < 0.0001;
+  K = abs(inputs(:,2)-OptIn(t,2)) < 0.0001;
+  L = abs(inputs(:,3)-OptIn(t,3)) < 0.0001;
+  T = I&J&K&L;
+  ind = IndAll(T);
+  [~,T] = min(Data.CylDist(ind,best));
+  OptModel(t,1) = ind(T);
+  OptModels{t,1} = ind;
+  OptModels{t,2} = ind(T);
+  DataM(:,t) = mean(treedata(:,ind),2);
+  DataS(:,t) = std(treedata(:,ind),[],2);
+  if ninputs > 1
+    J = abs(inputs(:,1)-OptIn(t,4)) < 0.0001;
+    K = abs(inputs(:,2)-OptIn(t,5)) < 0.0001;
+    L = abs(inputs(:,3)-OptIn(t,6)) < 0.0001;
     T = I&J&K&L;
     ind = IndAll(T);
-    [~,T] = min(dist(ind,best));
-    OptModel(t,1) = ind(T);
-    OptModels{t,1} = ind;
-    OptModels{t,2} = ind(T);
-    DataM(:,t) = mean(treedata(:,ind),2);
-    DataS(:,t) = std(treedata(:,ind),[],2);
-    if ninputs > 1
-        J = abs(inputs(:,1)-OptIn(t,4)) < 0.0001;
-        K = abs(inputs(:,2)-OptIn(t,5)) < 0.0001;
-        L = abs(inputs(:,3)-OptIn(t,6)) < 0.0001;
-        T = I&J&K&L;
-        ind = IndAll(T);
-        [~,T] = min(dist(ind,best));
-        OptModel(t,2) = ind(T);
-        DataM2(:,t) = mean(treedata(:,ind),2);
-        DataS2(:,t) = std(treedata(:,ind),[],2);
-        if ninputs > 2
-            J = abs(inputs(:,1)-OptIn(t,7)) < 0.0001;
-            K = abs(inputs(:,2)-OptIn(t,8)) < 0.0001;
-            L = abs(inputs(:,3)-OptIn(t,9)) < 0.0001;
-            T = I&J&K&L;
-            ind = IndAll(T);
-            [~,T] = min(dist(ind,best));
-            OptModel(t,3) = ind(T);
-            DataM3(:,t) = mean(treedata(:,ind),2);
-            DataS3(:,t) = std(treedata(:,ind),[],2);
-        end
+    [~,T] = min(Data.CylDist(ind,best));
+    OptModel(t,2) = ind(T);
+    DataM2(:,t) = mean(treedata(:,ind),2);
+    DataS2(:,t) = std(treedata(:,ind),[],2);
+    if ninputs > 2
+      J = abs(inputs(:,1)-OptIn(t,7)) < 0.0001;
+      K = abs(inputs(:,2)-OptIn(t,8)) < 0.0001;
+      L = abs(inputs(:,3)-OptIn(t,9)) < 0.0001;
+      T = I&J&K&L;
+      ind = IndAll(T);
+      [~,T] = min(Data.CylDist(ind,best));
+      OptModel(t,3) = ind(T);
+      DataM3(:,t) = mean(treedata(:,ind),2);
+      DataS3(:,t) = std(treedata(:,ind),[],2);
     end
+  end
 end
 if ninputs > 1
-    OptModel2 = IndAll(OptModel(:,2));
-    if ninputs > 2
-        OptModel3 = IndAll(OptModel(:,3));
-    end
+  OptModel2 = IndAll(OptModel(:,2));
+  if ninputs > 2
+    OptModel3 = IndAll(OptModel(:,3));
+  end
 end
 OptModel = IndAll(OptModel(:,1));
 for i = 1:nt
-    OptInputs(i) = QSMs(OptModel(i,1)).rundata.inputs;
-    if ninputs > 1
-        OI2(i) = QSMs(OptModel2(i)).rundata.inputs;
-        if ninputs > 2
-            OI3(i) = QSMs(OptModel3(i)).rundata.inputs;
-        end
+  OptInputs(i) = QSMs(OptModel(i,1)).rundata.inputs;
+  if ninputs > 1
+    OI2(i) = QSMs(OptModel2(i)).rundata.inputs;
+    if ninputs > 2
+      OI3(i) = QSMs(OptModel3(i)).rundata.inputs;
     end
+  end
 end
 for i = 1:nt
-    OptInputs(i).metric = Metric;
+  OptInputs(i).metric = Metric;
 end
 OptQSM = QSMs(OptModel);
 DataCV = DataS./DataM*100; % Coefficient of variation
 if ninputs > 1
-    DataCV2 = DataS2./DataM2*100; % Coefficient of variation
-    if ninputs > 2
-        DataCV3 = DataS3./DataM3*100; % Coefficient of variation
-    end
+  DataCV2 = DataS2./DataM2*100; % Coefficient of variation
+  if ninputs > 2
+    DataCV3 = DataS3./DataM3*100; % Coefficient of variation
+  end
 end
 
-%% Display some data about optimal models 
+%% Display some data about optimal models
 % Decrease the number on non-zero decimals
 for j = 1:nt
-    DataM(:,j) = change_precision(DataM(:,j));
-    DataS(:,j) = change_precision(DataS(:,j));
-    DataCV(:,j) = change_precision(DataCV(:,j));
-    if ninputs > 1
-        DataM2(:,j) = change_precision(DataM2(:,j));
-        DataS2(:,j) = change_precision(DataS2(:,j));
-        DataCV2(:,j) = change_precision(DataCV2(:,j));
-        if ninputs > 2
-            DataM3(:,j) = change_precision(DataM3(:,j));
-            DataS3(:,j) = change_precision(DataS3(:,j));
-            DataCV3(:,j) = change_precision(DataCV3(:,j));
-        end
+  DataM(:,j) = change_precision(DataM(:,j));
+  DataS(:,j) = change_precision(DataS(:,j));
+  DataCV(:,j) = change_precision(DataCV(:,j));
+  if ninputs > 1
+    DataM2(:,j) = change_precision(DataM2(:,j));
+    DataS2(:,j) = change_precision(DataS2(:,j));
+    DataCV2(:,j) = change_precision(DataCV2(:,j));
+    if ninputs > 2
+      DataM3(:,j) = change_precision(DataM3(:,j));
+      DataS3(:,j) = change_precision(DataS3(:,j));
+      DataCV3(:,j) = change_precision(DataCV3(:,j));
     end
+  end
 end
 
 Names = names(1:n);
 L = max(cellfun('length',Names))+1;
 for i = 1:n
-    name = Names{i};
-    name(L) = ' ';
-    Names{i} = name;
+  name = Names{i};
+  name(L) = ' ';
+  Names{i} = name;
 end
 
 % Display optimal inputs, model and attributes for each tree
@@ -392,102 +415,105 @@ for t = 1:nt
     disp(['    Metric: ',Metric])
     disp(['    Metric value:  ',num2str(1000*OptDist(t,1))])
     disp(['    Optimal inputs:  PatchDiam1 = ',...
-        num2str(OptInputs(t).PatchDiam1)])
+      num2str(OptInputs(t).PatchDiam1)])
     disp(['                  PatchDiam2Min = ',...
-        num2str(OptInputs(t).PatchDiam2Min)])
+      num2str(OptInputs(t).PatchDiam2Min)])
     disp(['                  PatchDiam2Max = ',...
-        num2str(OptInputs(t).PatchDiam2Max)])
+      num2str(OptInputs(t).PatchDiam2Max)])
     disp(['    Optimal model: ',num2str(OptModel(t))])
     sec = num2str(round(QSMs(OptModel(t)).rundata.time(end)));
     disp(['    Reconstruction time for the optimal model: ',sec,' seconds'])
     disp('    Attributes (mean, std, CV(%)):')
     for i = 1:n
-        str = (['      ',Names{i},': ',num2str([...
-            DataM(i,t) DataS(i,t) DataCV(i,t)])]);
-        disp(str)
+      str = (['      ',Names{i},': ',num2str([...
+        DataM(i,t) DataS(i,t) DataCV(i,t)])]);
+      disp(str)
     end
   elseif ninputs == 2
     disp('    The best two cases:')
     disp(['    Metric: ',Metric])
     disp(['    Metric values:  ',num2str(OptDist(t,:))])
     disp(['            inputs:  PatchDiam1 = ',...
-        num2str([OptInputs(t).PatchDiam1 OI2(t).PatchDiam1])])
+      num2str([OptInputs(t).PatchDiam1 OI2(t).PatchDiam1])])
     disp(['                  PatchDiam2Min = ',...
-        num2str([OptInputs(t).PatchDiam2Min OI2(t).PatchDiam2Min])])
+      num2str([OptInputs(t).PatchDiam2Min OI2(t).PatchDiam2Min])])
     disp(['                  PatchDiam2Max = ',...
-        num2str([OptInputs(t).PatchDiam2Max OI2(t).PatchDiam2Max])])
+      num2str([OptInputs(t).PatchDiam2Max OI2(t).PatchDiam2Max])])
     disp(['    Optimal model: ',num2str(OptModel(t))])
     sec = num2str(round(QSMs(OptModel(t)).rundata.time(end)));
     disp(['    Reconstruction time for the optimal model: ',sec,' seconds'])
     disp('    Attributes (mean, std, CV(%), second best mean):')
     for i = 1:n
-        str = (['      ',Names{i},':  ',num2str([DataM(i,t) ...
-            DataS(i,t) DataCV(i,t) DataM2(i,t)])]);
-        disp(str)
+      str = (['      ',Names{i},':  ',num2str([DataM(i,t) ...
+        DataS(i,t) DataCV(i,t) DataM2(i,t)])]);
+      disp(str)
     end
   elseif ninputs > 2
     disp('    The best three cases:')
     disp(['    Metric: ',Metric])
     disp(['    Metric values:  ',num2str(OptDist(t,:))])
     disp(['            inputs:  PatchDiam1 = ',num2str([...
-        OptInputs(t).PatchDiam1 OI2(t).PatchDiam1 OI3(t).PatchDiam1])])
+      OptInputs(t).PatchDiam1 OI2(t).PatchDiam1 OI3(t).PatchDiam1])])
     disp(['                  PatchDiam2Min = ',num2str([...
-        OptInputs(t).PatchDiam2Min OI2(t).PatchDiam2Min OI3(t).PatchDiam2Min])])
+      OptInputs(t).PatchDiam2Min OI2(t).PatchDiam2Min OI3(t).PatchDiam2Min])])
     disp(['                  PatchDiam2Max = ',num2str([...
-        OptInputs(t).PatchDiam2Max OI2(t).PatchDiam2Max OI3(t).PatchDiam2Max])])
+      OptInputs(t).PatchDiam2Max OI2(t).PatchDiam2Max OI3(t).PatchDiam2Max])])
     disp(['    Optimal model: ',num2str(OptModel(t))])
     sec = num2str(round(QSMs(OptModel(t)).rundata.time(end)));
     disp(['    Reconstruction time for the optimal model: ',sec,' seconds'])
     str = ['    Attributes (mean, std, CV(%),',...
-        ' second best mean, third best mean, sensitivity):'];
+      ' second best mean, third best mean, sensitivity):'];
     disp(str)
     for i = 1:n
-        sensi = max(abs([DataM(i,t)-DataM2(i,t)...
-            DataM(i,t)-DataM3(i,t)])/DataM(i,t));
-        sensi2 = 100*sensi;
-        sensi = 100*sensi/DataCV(i,t);
-        sensi2 = change_precision(sensi2);
-        sensi = change_precision(sensi);
-        str = (['      ',Names{i},':  ',num2str([DataM(i,t) DataS(i,t) ...
-            DataCV(i,t) DataM2(i,t) DataM3(i,t) sensi sensi2])]);
-        disp(str)
+      sensi = max(abs([DataM(i,t)-DataM2(i,t)...
+        DataM(i,t)-DataM3(i,t)])/DataM(i,t));
+      sensi2 = 100*sensi;
+      sensi = 100*sensi/DataCV(i,t);
+      sensi2 = change_precision(sensi2);
+      sensi = change_precision(sensi);
+      str = (['      ',Names{i},':  ',num2str([DataM(i,t) DataS(i,t) ...
+        DataCV(i,t) DataM2(i,t) DataM3(i,t) sensi sensi2])]);
+      disp(str)
     end
   end
   disp('------')
 end
 
+%% Compute the sensitivity of the tree attributes relative to PatchDiam-parameters
+Sensi = sensitivity_analysis(TreeDataAll,TreeId,Inputs,OptIn);
+
 %% Generate TreeData sructure for optimal models
 clear TreeData
 TreeData = vertcat(OptQSM(:).treedata);
 for t = 1:nt
-    for i = 1:n
-        TreeData(t).(names{i}) = [DataM(i,t) DataS(i,t)];
-    end
-    TreeData(t).name = OptInputs(t).name;
+  for i = 1:n
+    TreeData(t).(names{i}) = [DataM(i,t) DataS(i,t) squeeze(Sensi(t,i,:))'];
+  end
+  TreeData(t).name = OptInputs(t).name;
 end
 
 %% Save results
 if nargin == 3
-    str = ['results/OptimalQSMs_',savename];
-    save(str,'TreeData','OptModels','OptInputs','OptQSM')
-    
-    str = ['results/tree_data_',savename,'.txt'];
-    fid = fopen(str, 'wt');
-    fprintf(fid, [repmat('%g\t', 1, size(DataM,2)-1) '%g\n'], DataM.');
-    fclose(fid);
+  str = ['results/OptimalQSMs_',savename];
+  save(str,'TreeData','OptModels','OptInputs','OptQSM')
+
+  str = ['results/tree_data_',savename,'.txt'];
+  fid = fopen(str, 'wt');
+  fprintf(fid, [repmat('%g\t', 1, size(DataM,2)-1) '%g\n'], DataM.');
+  fclose(fid);
 end
 
 % End of main function
-end 
+end
 
 
 function [treedata,inputs,TreeId,Data] = collect_data(...
-    QSMs,names,Nattri)
+  QSMs,names,Nattri)
 
 Nmod = max(size(QSMs)); % number of models
 treedata = zeros(Nattri,Nmod); % Collect all tree attributes from all models
-inputs = zeros(Nmod,3); % collect the inputs from all models 
-                    % ([PatchDiam1 PatchDiam2Min PatchDiam2Max lcyl FilRad])
+inputs = zeros(Nmod,3); % collect the inputs from all models
+% ([PatchDiam1 PatchDiam2Min PatchDiam2Max])
 CylDist = zeros(Nmod,10); % collect the distances from all models
 CylSurfCov = zeros(Nmod,10); % collect the surface coverages from all models
 s = 6; % maximum branch order
@@ -499,67 +525,75 @@ TreeId = zeros(Nmod,2); % collectd the tree and model indexes from all models
 Keep = true(Nmod,1); % Non-empty models
 
 for i = 1:Nmod
-    if ~isempty(QSMs(i).cylinder)
-        % Collect input-parameter values and tree IDs:
-        p = QSMs(i).rundata.inputs;
-        inputs(i,:) = [p.PatchDiam1 p.PatchDiam2Min p.PatchDiam2Max];
-        TreeId(i,:) = [p.tree p.model];
-        
-        % Collect cylinder-point distances: mean of all cylinders,
-        % mean of trunk, branch, 1st- and 2nd-order branch cylinders.
-        % And the maximum of the previous:
-        D = QSMs(i).pmdistance;
-        CylDist(i,:) =  [D.mean  D.TrunkMean  D.BranchMean  D.Branch1Mean ...
-            D.Branch2Mean D.max  D.TrunkMax  D.BranchMax  D.Branch1Max ...
-            D.Branch2Max];
-        
-        % Collect surface coverages: mean of all cylinders,
-        % mean of trunk, branch, 1st- and 2nd-order branch cylinders.
-        % And the minimum of the previous:
-        D = QSMs(i).cylinder.SurfCov;
-        T = QSMs(i).cylinder.branch == 1;
-        B1 = QSMs(i).cylinder.BranchOrder == 1;
-        B2 = QSMs(i).cylinder.BranchOrder == 2;
-        CylSurfCov(i,:) =  [mean(D)  mean(D(T))  mean(D(~T))  mean(D(B1)) ...
-            mean(D(B2)) min(D) min(D(T)) min(D(~T)) min(D(B1)) min(D(B2))];
-        
-        % Collect branch-order distributions:
-        d = QSMs(i).treedata.VolBranchOrd;
-        nd = length(d);
-        if nd > 0
-            a = min(nd,s);
-            OrdDis(i,1:a) = d(1:a);
-            OrdDis(i,s+1:s+a) = QSMs(i).treedata.AreBranchOrd(1:a);
-            OrdDis(i,2*s+1:2*s+a) = QSMs(i).treedata.LenBranchOrd(1:a);
-            OrdDis(i,3*s+1:3*s+a) = QSMs(i).treedata.NumBranchOrd(1:a);
-        end
-        
-        % Collect cylinder diameter distributions:
-        d = QSMs(i).treedata.VolCylDia;
-        nd = length(d);
-        if nd > 0
-            a = min(nd,r);
-            CylDiaDis(i,1:a) = d(1:a);
-            CylDiaDis(i,r+1:r+a) = QSMs(i).treedata.AreCylDia(1:a);
-            CylDiaDis(i,2*r+1:2*r+a) = QSMs(i).treedata.LenCylDia(1:a);
-        end
-        
-        % Collect cylinder zenith direction distributions:
-        d = QSMs(i).treedata.VolCylZen;
-        if ~isempty(d)
-            CylZenDis(i,1:18) = d;
-            CylZenDis(i,19:36) = QSMs(i).treedata.AreCylZen;
-            CylZenDis(i,37:54) = QSMs(i).treedata.LenCylZen;
-        end
-        
-        % Collect the treedata values from each model
-        for j = 1:Nattri
-            treedata(j,i) = QSMs(i).treedata.(names{j});
-        end
-        
+  if ~isempty(QSMs(i).cylinder)
+    % Collect input-parameter values and tree IDs:
+    p = QSMs(i).rundata.inputs;
+    inputs(i,:) = [p.PatchDiam1 p.PatchDiam2Min p.PatchDiam2Max];
+    TreeId(i,:) = [p.tree p.model];
+
+    % Collect cylinder-point distances: mean of all cylinders,
+    % mean of trunk, branch, 1st- and 2nd-order branch cylinders.
+    % And the maximum of the previous:
+    D = QSMs(i).pmdistance;
+    CylDist(i,:) =  [D.mean  D.TrunkMean  D.BranchMean  D.Branch1Mean ...
+      D.Branch2Mean D.max  D.TrunkMax  D.BranchMax  D.Branch1Max ...
+      D.Branch2Max];
+
+    % Collect surface coverages: mean of all cylinders,
+    % mean of trunk, branch, 1st- and 2nd-order branch cylinders.
+    % And the minimum of the previous:
+    D = QSMs(i).cylinder.SurfCov;
+    T = QSMs(i).cylinder.branch == 1;
+    B1 = QSMs(i).cylinder.BranchOrder == 1;
+    B2 = QSMs(i).cylinder.BranchOrder == 2;
+    if ~any(B1)
+      CylSurfCov(i,:) =  [mean(D)  mean(D(T))  0 0 0 ...
+         min(D) min(D(T)) 0 0 0];
+    elseif ~any(B2)
+      CylSurfCov(i,:) =  [mean(D)  mean(D(T))  mean(D(~T))  mean(D(B1)) ...
+        0 min(D) min(D(T)) min(D(~T)) min(D(B1)) 0];
     else
-        Keep(i) = false;
+      CylSurfCov(i,:) =  [mean(D)  mean(D(T))  mean(D(~T))  mean(D(B1)) ...
+        mean(D(B2)) min(D) min(D(T)) min(D(~T)) min(D(B1)) min(D(B2))];
     end
+
+    % Collect branch-order distributions:
+    d = QSMs(i).treedata.VolBranchOrd;
+    nd = length(d);
+    if nd > 0
+      a = min(nd,s);
+      OrdDis(i,1:a) = d(1:a);
+      OrdDis(i,s+1:s+a) = QSMs(i).treedata.AreBranchOrd(1:a);
+      OrdDis(i,2*s+1:2*s+a) = QSMs(i).treedata.LenBranchOrd(1:a);
+      OrdDis(i,3*s+1:3*s+a) = QSMs(i).treedata.NumBranchOrd(1:a);
+    end
+
+    % Collect cylinder diameter distributions:
+    d = QSMs(i).treedata.VolCylDia;
+    nd = length(d);
+    if nd > 0
+      a = min(nd,r);
+      CylDiaDis(i,1:a) = d(1:a);
+      CylDiaDis(i,r+1:r+a) = QSMs(i).treedata.AreCylDia(1:a);
+      CylDiaDis(i,2*r+1:2*r+a) = QSMs(i).treedata.LenCylDia(1:a);
+    end
+
+    % Collect cylinder zenith direction distributions:
+    d = QSMs(i).treedata.VolCylZen;
+    if ~isempty(d)
+      CylZenDis(i,1:18) = d;
+      CylZenDis(i,19:36) = QSMs(i).treedata.AreCylZen;
+      CylZenDis(i,37:54) = QSMs(i).treedata.LenCylZen;
+    end
+
+    % Collect the treedata values from each model
+    for j = 1:Nattri
+      treedata(j,i) = QSMs(i).treedata.(names{j});
+    end
+
+  else
+    Keep(i) = false;
+  end
 end
 treedata = treedata(:,Keep);
 inputs = inputs(Keep,:);
@@ -572,444 +606,490 @@ Data.CylDiaDis = CylDiaDis(Keep,:);
 Data.CylZenDis = CylZenDis(Keep,:);
 
 % End of function
-end 
+end
 
 
 function [met,Metric] = select_metric(Metric)
 
 % Mean distance metrics:
 if strcmp(Metric,'all_mean_dis')
-    met = 1;
+  met = 1;
 elseif strcmp(Metric,'trunk_mean_dis')
-    met = 2;
+  met = 2;
 elseif strcmp(Metric,'branch_mean_dis')
-    met = 3;
+  met = 3;
 elseif strcmp(Metric,'1branch_mean_dis')
-    met = 4;
+  met = 4;
 elseif strcmp(Metric,'2branch_mean_dis')
-    met = 5;
+  met = 5;
 elseif strcmp(Metric,'trunk+branch_mean_dis')
-    met = 6;
+  met = 6;
 elseif strcmp(Metric,'trunk+1branch_mean_dis')
-    met = 7;
+  met = 7;
 elseif strcmp(Metric,'trunk+1branch+2branch_mean_dis')
-    met = 8;
+  met = 8;
 elseif strcmp(Metric,'1branch+2branch_mean_dis')
-    met = 9;
-    
-% Maximum distance metrics:
-elseif strcmp(Metric,'all_max_dis')
-    met = 10;
-elseif strcmp(Metric,'trunk_max_dis')
-    met = 11;
-elseif strcmp(Metric,'branch_max_dis')
-    met = 12;
-elseif strcmp(Metric,'1branch_max_dis')
-    met = 13;
-elseif strcmp(Metric,'2branch_max_dis')
-    met = 14;
-elseif strcmp(Metric,'trunk+branch_max_dis')
-    met = 15;
-elseif strcmp(Metric,'trunk+1branch_max_dis')
-    met = 16;
-elseif strcmp(Metric,'trunk+1branch+2branch_max_dis')
-    met = 17;
-elseif strcmp(Metric,'1branch+2branch_max_dis')
-    met = 18;
-    
-% Mean plus Maximum distance metrics:
-elseif strcmp(Metric,'all_mean+max_dis')
-    met = 19;
-elseif strcmp(Metric,'trunk_mean+max_dis')
-    met = 20;
-elseif strcmp(Metric,'branch_mean+max_dis')
-    met = 21;
-elseif strcmp(Metric,'1branch_mean+max_dis')
-    met = 22;
-elseif strcmp(Metric,'2branch_mean+max_dis')
-    met = 23;
-elseif strcmp(Metric,'trunk+branch_mean+max_dis')
-    met = 24;
-elseif strcmp(Metric,'trunk+1branch_mean+max_dis')
-    met = 25;
-elseif strcmp(Metric,'trunk+1branch+2branch_mean+max_dis')
-    met = 26;
-elseif strcmp(Metric,'1branch+2branch_mean+max_dis')
-    met = 27;
-    
-% Standard deviation metrics:
-elseif strcmp(Metric,'tot_vol_std')
-    met = 28;
-elseif strcmp(Metric,'trunk_vol_std')
-    met = 29;
-elseif strcmp(Metric,'branch_vol_std')
-    met = 30;
-elseif strcmp(Metric,'trunk+branch_vol_std')
-    met = 31;
-elseif strcmp(Metric,'tot_are_std')
-    met = 32;
-elseif strcmp(Metric,'trunk_are_std')
-    met = 33;
-elseif strcmp(Metric,'branch_are_std')
-    met = 34;
-elseif strcmp(Metric,'trunk+branch_are_std')
-    met = 35;
-elseif strcmp(Metric,'trunk_len_std')
-    met = 36;
-elseif strcmp(Metric,'trunk+branch_len_std')
-    met = 37;
-elseif strcmp(Metric,'branch_len_std')
-    met = 38;
-elseif strcmp(Metric,'branch_num_std')
-    met = 39;    
-    
-% Branch order distribution metrics:
-elseif strcmp(Metric,'branch_vol_ord3_mean')
-    met = 40;
-elseif strcmp(Metric,'branch_are_ord3_mean')
-    met = 41;
-elseif strcmp(Metric,'branch_len_ord3_mean')
-    met = 42;
-elseif strcmp(Metric,'branch_num_ord3_mean')
-    met = 43;
-elseif strcmp(Metric,'branch_vol_ord3_max')
-    met = 44;
-elseif strcmp(Metric,'branch_are_ord3_max')
-    met = 45;
-elseif strcmp(Metric,'branch_len_ord3_max')
-    met = 46;
-elseif strcmp(Metric,'branch_num_ord3_max')
-    met = 47;
-elseif strcmp(Metric,'branch_vol_ord6_mean')
-    met = 48;
-elseif strcmp(Metric,'branch_are_ord6_mean')
-    met = 49;
-elseif strcmp(Metric,'branch_len_ord6_mean')
-    met = 50;
-elseif strcmp(Metric,'branch_num_ord6_mean')
-    met = 51;
-elseif strcmp(Metric,'branch_vol_ord6_max')
-    met = 52;
-elseif strcmp(Metric,'branch_are_ord6_max')
-    met = 53;
-elseif strcmp(Metric,'branch_len_ord6_max')
-    met = 54;
-elseif strcmp(Metric,'branch_num_ord6_max')
-    met = 55;
-    
-% Cylinder distribution metrics:
-elseif strcmp(Metric,'cyl_vol_dia10_mean')
-    met = 56;
-elseif strcmp(Metric,'cyl_are_dia10_mean')
-    met = 57;
-elseif strcmp(Metric,'cyl_len_dia10_mean')
-    met = 58;
-elseif strcmp(Metric,'cyl_vol_dia10_max')
-    met = 59;
-elseif strcmp(Metric,'cyl_are_dia10_max')
-    met = 60;
-elseif strcmp(Metric,'cyl_len_dia10_max')
-    met = 61;
-elseif strcmp(Metric,'cyl_vol_dia20_mean')
-    met = 62;
-elseif strcmp(Metric,'cyl_are_dia20_mean')
-    met = 63;
-elseif strcmp(Metric,'cyl_len_dia20_mean')
-    met = 64;
-elseif strcmp(Metric,'cyl_vol_dia20_max')
-    met = 65;
-elseif strcmp(Metric,'cyl_are_dia20_max')
-    met = 66;
-elseif strcmp(Metric,'cyl_len_dia20_max')
-    met = 67;
-elseif strcmp(Metric,'cyl_vol_zen_mean')
-    met = 68;
-elseif strcmp(Metric,'cyl_are_zen_mean')
-    met = 69;
-elseif strcmp(Metric,'cyl_len_zen_mean')
-    met = 70;
-elseif strcmp(Metric,'cyl_vol_zen_max')
-    met = 71;
-elseif strcmp(Metric,'cyl_are_zen_max')
-    met = 72;
-elseif strcmp(Metric,'cyl_len_zen_max')
-    met = 73;
+  met = 9;
 
-% Mean surface coverage metrics:
+  % Maximum distance metrics:
+elseif strcmp(Metric,'all_max_dis')
+  met = 10;
+elseif strcmp(Metric,'trunk_max_dis')
+  met = 11;
+elseif strcmp(Metric,'branch_max_dis')
+  met = 12;
+elseif strcmp(Metric,'1branch_max_dis')
+  met = 13;
+elseif strcmp(Metric,'2branch_max_dis')
+  met = 14;
+elseif strcmp(Metric,'trunk+branch_max_dis')
+  met = 15;
+elseif strcmp(Metric,'trunk+1branch_max_dis')
+  met = 16;
+elseif strcmp(Metric,'trunk+1branch+2branch_max_dis')
+  met = 17;
+elseif strcmp(Metric,'1branch+2branch_max_dis')
+  met = 18;
+
+  % Mean plus Maximum distance metrics:
+elseif strcmp(Metric,'all_mean+max_dis')
+  met = 19;
+elseif strcmp(Metric,'trunk_mean+max_dis')
+  met = 20;
+elseif strcmp(Metric,'branch_mean+max_dis')
+  met = 21;
+elseif strcmp(Metric,'1branch_mean+max_dis')
+  met = 22;
+elseif strcmp(Metric,'2branch_mean+max_dis')
+  met = 23;
+elseif strcmp(Metric,'trunk+branch_mean+max_dis')
+  met = 24;
+elseif strcmp(Metric,'trunk+1branch_mean+max_dis')
+  met = 25;
+elseif strcmp(Metric,'trunk+1branch+2branch_mean+max_dis')
+  met = 26;
+elseif strcmp(Metric,'1branch+2branch_mean+max_dis')
+  met = 27;
+
+  % Standard deviation metrics:
+elseif strcmp(Metric,'tot_vol_std')
+  met = 28;
+elseif strcmp(Metric,'trunk_vol_std')
+  met = 29;
+elseif strcmp(Metric,'branch_vol_std')
+  met = 30;
+elseif strcmp(Metric,'trunk+branch_vol_std')
+  met = 31;
+elseif strcmp(Metric,'tot_are_std')
+  met = 32;
+elseif strcmp(Metric,'trunk_are_std')
+  met = 33;
+elseif strcmp(Metric,'branch_are_std')
+  met = 34;
+elseif strcmp(Metric,'trunk+branch_are_std')
+  met = 35;
+elseif strcmp(Metric,'trunk_len_std')
+  met = 36;
+elseif strcmp(Metric,'trunk+branch_len_std')
+  met = 37;
+elseif strcmp(Metric,'branch_len_std')
+  met = 38;
+elseif strcmp(Metric,'branch_num_std')
+  met = 39;
+
+  % Branch order distribution metrics:
+elseif strcmp(Metric,'branch_vol_ord3_mean')
+  met = 40;
+elseif strcmp(Metric,'branch_are_ord3_mean')
+  met = 41;
+elseif strcmp(Metric,'branch_len_ord3_mean')
+  met = 42;
+elseif strcmp(Metric,'branch_num_ord3_mean')
+  met = 43;
+elseif strcmp(Metric,'branch_vol_ord3_max')
+  met = 44;
+elseif strcmp(Metric,'branch_are_ord3_max')
+  met = 45;
+elseif strcmp(Metric,'branch_len_ord3_max')
+  met = 46;
+elseif strcmp(Metric,'branch_num_ord3_max')
+  met = 47;
+elseif strcmp(Metric,'branch_vol_ord6_mean')
+  met = 48;
+elseif strcmp(Metric,'branch_are_ord6_mean')
+  met = 49;
+elseif strcmp(Metric,'branch_len_ord6_mean')
+  met = 50;
+elseif strcmp(Metric,'branch_num_ord6_mean')
+  met = 51;
+elseif strcmp(Metric,'branch_vol_ord6_max')
+  met = 52;
+elseif strcmp(Metric,'branch_are_ord6_max')
+  met = 53;
+elseif strcmp(Metric,'branch_len_ord6_max')
+  met = 54;
+elseif strcmp(Metric,'branch_num_ord6_max')
+  met = 55;
+
+  % Cylinder distribution metrics:
+elseif strcmp(Metric,'cyl_vol_dia10_mean')
+  met = 56;
+elseif strcmp(Metric,'cyl_are_dia10_mean')
+  met = 57;
+elseif strcmp(Metric,'cyl_len_dia10_mean')
+  met = 58;
+elseif strcmp(Metric,'cyl_vol_dia10_max')
+  met = 59;
+elseif strcmp(Metric,'cyl_are_dia10_max')
+  met = 60;
+elseif strcmp(Metric,'cyl_len_dia10_max')
+  met = 61;
+elseif strcmp(Metric,'cyl_vol_dia20_mean')
+  met = 62;
+elseif strcmp(Metric,'cyl_are_dia20_mean')
+  met = 63;
+elseif strcmp(Metric,'cyl_len_dia20_mean')
+  met = 64;
+elseif strcmp(Metric,'cyl_vol_dia20_max')
+  met = 65;
+elseif strcmp(Metric,'cyl_are_dia20_max')
+  met = 66;
+elseif strcmp(Metric,'cyl_len_dia20_max')
+  met = 67;
+elseif strcmp(Metric,'cyl_vol_zen_mean')
+  met = 68;
+elseif strcmp(Metric,'cyl_are_zen_mean')
+  met = 69;
+elseif strcmp(Metric,'cyl_len_zen_mean')
+  met = 70;
+elseif strcmp(Metric,'cyl_vol_zen_max')
+  met = 71;
+elseif strcmp(Metric,'cyl_are_zen_max')
+  met = 72;
+elseif strcmp(Metric,'cyl_len_zen_max')
+  met = 73;
+
+  % Mean surface coverage metrics:
 elseif strcmp(Metric,'all_mean_surf')
-    met = 74;
+  met = 74;
 elseif strcmp(Metric,'trunk_mean_surf')
-    met = 75;
+  met = 75;
 elseif strcmp(Metric,'branch_mean_surf')
-    met = 76;
+  met = 76;
 elseif strcmp(Metric,'1branch_mean_surf')
-    met = 77;
+  met = 77;
 elseif strcmp(Metric,'2branch_mean_surf')
-    met = 78;
+  met = 78;
 elseif strcmp(Metric,'trunk+branch_mean_surf')
-    met = 79;
+  met = 79;
 elseif strcmp(Metric,'trunk+1branch_mean_surf')
-    met = 80;
+  met = 80;
 elseif strcmp(Metric,'trunk+1branch+2branch_mean_surf')
-    met = 81;
+  met = 81;
 elseif strcmp(Metric,'1branch+2branch_mean_surf')
-    met = 82;
-    
-% Minimum surface coverage metrics:
+  met = 82;
+
+  % Minimum surface coverage metrics:
 elseif strcmp(Metric,'all_min_surf')
-    met = 83;
+  met = 83;
 elseif strcmp(Metric,'trunk_min_surf')
-    met = 84;
+  met = 84;
 elseif strcmp(Metric,'branch_min_surf')
-    met = 85;
+  met = 85;
 elseif strcmp(Metric,'1branch_min_surf')
-    met = 86;
+  met = 86;
 elseif strcmp(Metric,'2branch_min_surf')
-    met = 87;
+  met = 87;
 elseif strcmp(Metric,'trunk+branch_min_surf')
-    met = 88;
+  met = 88;
 elseif strcmp(Metric,'trunk+1branch_min_surf')
-    met = 89;
+  met = 89;
 elseif strcmp(Metric,'trunk+1branch+2branch_min_surf')
-    met = 90;
+  met = 90;
 elseif strcmp(Metric,'1branch+2branch_min_surf')
-    met = 91;
-    
-% Not given in right form, take the default option
+  met = 91;
+
+  % Not given in right form, take the default option
 else
-    met = 1;
-    Metric = 'all_mean_dis';
+  met = 1;
+  Metric = 'all_mean_dis';
 end
 % End of function
-end 
+end
 
 
 function D = compute_metric_value(met,T,treedata,Data)
 
 
 if met <= 27 % cylinder distance metrics:
-    D = mean(Data.CylDist(T,:),1);
-    D(6:10) = 0.5*D(6:10); % Half the maximum values
+  D = mean(Data.CylDist(T,:),1);
+  D(6:10) = 0.5*D(6:10); % Half the maximum values
 end
-                        
+
 if met < 10 % mean cylinder distance metrics:
-    if met == 1 % all_mean_dis
-        D = D(1);
-    elseif met == 2 % trunk_mean_dis
-        D = D(2);
-    elseif met == 3 % branch_mean_dis
-        D = D(3);
-    elseif met == 4 % 1branch_mean_dis
-        D = D(4);
-    elseif met == 5 % 2branch_mean_dis
-        D = D(5);
-    elseif met == 6 % trunk+branch_mean_dis
-        D = D(2)+D(3);
-    elseif met == 7 % trunk+1branch_mean_dis
-        D = D(2)+D(4);
-    elseif met == 8 % trunk+1branch+2branch_mean_dis
-        D = D(2)+D(4)+D(5);
-    elseif met == 9 % 1branch+2branch_mean_dis
-        D = D(4)+D(5);
-    end 
-    
+  if met == 1 % all_mean_dis
+    D = D(1);
+  elseif met == 2 % trunk_mean_dis
+    D = D(2);
+  elseif met == 3 % branch_mean_dis
+    D = D(3);
+  elseif met == 4 % 1branch_mean_dis
+    D = D(4);
+  elseif met == 5 % 2branch_mean_dis
+    D = D(5);
+  elseif met == 6 % trunk+branch_mean_dis
+    D = D(2)+D(3);
+  elseif met == 7 % trunk+1branch_mean_dis
+    D = D(2)+D(4);
+  elseif met == 8 % trunk+1branch+2branch_mean_dis
+    D = D(2)+D(4)+D(5);
+  elseif met == 9 % 1branch+2branch_mean_dis
+    D = D(4)+D(5);
+  end
+
 elseif met < 19 % maximum cylinder distance metrics:
-    if met == 10 % all_max_dis
-        D = D(6);
-    elseif met == 11 % trunk_max_dis
-        D = D(7);
-    elseif met == 12 % branch_max_dis
-        D = D(8);
-    elseif met == 13 % 1branch_max_dis
-        D = D(9);
-    elseif met == 14 % 2branch_max_dis
-        D = D(10);
-    elseif met == 15 % trunk+branch_max_dis
-        D = D(7)+D(8);
-    elseif met == 16 % trunk+1branch_max_dis
-        D = D(7)+D(9);
-    elseif met == 17 % trunk+1branch+2branch_max_dis
-        D = D(7)+D(9)+D(10);
-    elseif met == 18 % 1branch+2branch_max_dis
-        D = D(9)+D(10);
-    end
-    
+  if met == 10 % all_max_dis
+    D = D(6);
+  elseif met == 11 % trunk_max_dis
+    D = D(7);
+  elseif met == 12 % branch_max_dis
+    D = D(8);
+  elseif met == 13 % 1branch_max_dis
+    D = D(9);
+  elseif met == 14 % 2branch_max_dis
+    D = D(10);
+  elseif met == 15 % trunk+branch_max_dis
+    D = D(7)+D(8);
+  elseif met == 16 % trunk+1branch_max_dis
+    D = D(7)+D(9);
+  elseif met == 17 % trunk+1branch+2branch_max_dis
+    D = D(7)+D(9)+D(10);
+  elseif met == 18 % 1branch+2branch_max_dis
+    D = D(9)+D(10);
+  end
+
 elseif met < 28 % Mean plus maximum cylinder distance metrics:
-    if met == 19 % all_mean+max_dis
-        D = D(1)+D(6);
-    elseif met == 20 % trunk_mean+max_dis
-        D = D(2)+D(7);
-    elseif met == 21 % branch_mean+max_dis
-        D = D(3)+D(8);
-    elseif met == 22 % 1branch_mean+max_dis
-        D = D(4)+D(9);
-    elseif met == 23 % 2branch_mean+max_dis
-        D = D(5)+D(10);
-    elseif met == 24 % trunk+branch_mean+max_dis
-        D = D(2)+D(3)+D(7)+D(8);
-    elseif met == 25 % trunk+1branch_mean+max_dis
-        D = D(2)+D(4)+D(7)+D(9);
-    elseif met == 26 % trunk+1branch+2branch_mean+max_dis
-        D = D(2)+D(4)+D(5)+D(7)+D(9)+D(10);
-    elseif met == 27 % 1branch+2branch_mean+max_dis
-        D = D(4)+D(5)+D(9)+D(10);
-    end
-    
+  if met == 19 % all_mean+max_dis
+    D = D(1)+D(6);
+  elseif met == 20 % trunk_mean+max_dis
+    D = D(2)+D(7);
+  elseif met == 21 % branch_mean+max_dis
+    D = D(3)+D(8);
+  elseif met == 22 % 1branch_mean+max_dis
+    D = D(4)+D(9);
+  elseif met == 23 % 2branch_mean+max_dis
+    D = D(5)+D(10);
+  elseif met == 24 % trunk+branch_mean+max_dis
+    D = D(2)+D(3)+D(7)+D(8);
+  elseif met == 25 % trunk+1branch_mean+max_dis
+    D = D(2)+D(4)+D(7)+D(9);
+  elseif met == 26 % trunk+1branch+2branch_mean+max_dis
+    D = D(2)+D(4)+D(5)+D(7)+D(9)+D(10);
+  elseif met == 27 % 1branch+2branch_mean+max_dis
+    D = D(4)+D(5)+D(9)+D(10);
+  end
+
 elseif met < 39 % Standard deviation metrics:
-    if met == 28 % tot_vol_std
-        D = std(treedata(1,T));
-    elseif met == 29 % trunk_vol_std
-        D = std(treedata(2,T));
-    elseif met == 30 % branch_vol_std
-        D = std(treedata(3,T));
-    elseif met == 31 % trunk+branch_vol_std
-        D = std(treedata(2,T))+std(treedata(3,T));
-    elseif met == 32 % tot_are_std
-        D = std(treedata(12,T));
-    elseif met == 33 % trunk_are_std
-        D = std(treedata(10,T));
-    elseif met == 34 % branch_are_std
-        D = std(treedata(11,T));
-    elseif met == 35 % trunk+branch_are_std
-        D = std(treedata(10,T))+std(treedata(11,T));
-    elseif met == 36 % trunk_len_std
-        D = std(treedata(5,T));
-    elseif met == 37 % branch_len_std
-        D = std(treedata(6,T));
-    elseif met == 38 % trunk+branch_len_std
-        D = std(treedata(5,T))+std(treedata(6,T));
-    elseif met == 39 % branch_num_std
-        D = std(treedata(8,T));
-    end
-    
+  if met == 28 % tot_vol_std
+    D = std(treedata(1,T));
+  elseif met == 29 % trunk_vol_std
+    D = std(treedata(2,T));
+  elseif met == 30 % branch_vol_std
+    D = std(treedata(3,T));
+  elseif met == 31 % trunk+branch_vol_std
+    D = std(treedata(2,T))+std(treedata(3,T));
+  elseif met == 32 % tot_are_std
+    D = std(treedata(12,T));
+  elseif met == 33 % trunk_are_std
+    D = std(treedata(10,T));
+  elseif met == 34 % branch_are_std
+    D = std(treedata(11,T));
+  elseif met == 35 % trunk+branch_are_std
+    D = std(treedata(10,T))+std(treedata(11,T));
+  elseif met == 36 % trunk_len_std
+    D = std(treedata(5,T));
+  elseif met == 37 % branch_len_std
+    D = std(treedata(6,T));
+  elseif met == 38 % trunk+branch_len_std
+    D = std(treedata(5,T))+std(treedata(6,T));
+  elseif met == 39 % branch_num_std
+    D = std(treedata(8,T));
+  end
+
 elseif met < 56 % Branch order metrics:
-    dis = max(Data.BranchOrdDis(T,:),[],1)-min(Data.BranchOrdDis(T,:),[],1);
-    M = mean(Data.BranchOrdDis(T,:),1);
-    I = M > 0;
-    dis(I) = dis(I)./M(I);
-    if met == 40 % branch_vol_ord3_mean
-        D = mean(dis(1:3));
-    elseif met == 41 % branch_are_ord3_mean
-        D = mean(dis(7:9));
-    elseif met == 42 % branch_len_ord3_mean
-        D = mean(dis(13:15)); 
-    elseif met == 43 % branch_num_ord3_mean
-        D = mean(dis(19:21));
-    elseif met == 44 % branch_vol_ord3_max
-        D = max(dis(1:3));
-    elseif met == 45 % branch_are_ord3_max
-        D = max(dis(7:9));
-    elseif met == 46 % branch_len_ord3_max
-        D = max(dis(13:15));
-    elseif met == 47 % branch_vol_ord3_max
-        D = max(dis(19:21));
-    elseif met == 48 % branch_vol_ord6_mean
-        D = mean(dis(1:6));
-    elseif met == 49 % branch_are_ord6_mean
-        D = mean(dis(7:12));
-    elseif met == 50 % branch_len_ord6_mean
-        D = mean(dis(13:18)); 
-    elseif met == 51 % branch_num_ord6_mean
-        D = mean(dis(19:24));
-    elseif met == 52 % branch_vol_ord6_max
-        D = max(dis(1:6));
-    elseif met == 53 % branch_are_ord6_max
-        D = max(dis(7:12));
-    elseif met == 54 % branch_len_ord6_max
-        D = max(dis(13:18));
-    elseif met == 55 % branch_vol_ord6_max
-        D = max(dis(19:24));
-    end
-    
+  dis = max(Data.BranchOrdDis(T,:),[],1)-min(Data.BranchOrdDis(T,:),[],1);
+  M = mean(Data.BranchOrdDis(T,:),1);
+  I = M > 0;
+  dis(I) = dis(I)./M(I);
+  if met == 40 % branch_vol_ord3_mean
+    D = mean(dis(1:3));
+  elseif met == 41 % branch_are_ord3_mean
+    D = mean(dis(7:9));
+  elseif met == 42 % branch_len_ord3_mean
+    D = mean(dis(13:15));
+  elseif met == 43 % branch_num_ord3_mean
+    D = mean(dis(19:21));
+  elseif met == 44 % branch_vol_ord3_max
+    D = max(dis(1:3));
+  elseif met == 45 % branch_are_ord3_max
+    D = max(dis(7:9));
+  elseif met == 46 % branch_len_ord3_max
+    D = max(dis(13:15));
+  elseif met == 47 % branch_vol_ord3_max
+    D = max(dis(19:21));
+  elseif met == 48 % branch_vol_ord6_mean
+    D = mean(dis(1:6));
+  elseif met == 49 % branch_are_ord6_mean
+    D = mean(dis(7:12));
+  elseif met == 50 % branch_len_ord6_mean
+    D = mean(dis(13:18));
+  elseif met == 51 % branch_num_ord6_mean
+    D = mean(dis(19:24));
+  elseif met == 52 % branch_vol_ord6_max
+    D = max(dis(1:6));
+  elseif met == 53 % branch_are_ord6_max
+    D = max(dis(7:12));
+  elseif met == 54 % branch_len_ord6_max
+    D = max(dis(13:18));
+  elseif met == 55 % branch_vol_ord6_max
+    D = max(dis(19:24));
+  end
+
 elseif met < 68 % Cylinder diameter distribution metrics:
-    dis = max(Data.CylDiaDis(T,:),[],1)-min(Data.CylDiaDis(T,:),[],1);
-    M = mean(Data.CylDiaDis(T,:),1);
-    I = M > 0;
-    dis(I) = dis(I)./M(I);
-    if met == 56 % cyl_vol_dia10_mean
-        D = mean(dis(1:10));
-    elseif met == 57 % cyl_are_dia10_mean
-        D = mean(dis(21:30));
-    elseif met == 58 % cyl_len_dia10_mean
-        D = mean(dis(41:50));
-    elseif met == 59 % cyl_vol_dia10_max
-        D = max(dis(1:10));
-    elseif met == 60 % cyl_are_dia10_max
-        D = max(dis(21:30));
-    elseif met == 61 % cyl_len_dia10_max
-        D = max(dis(41:50));
-    elseif met == 62 % cyl_vol_dia20_mean
-        D = mean(dis(1:20));
-    elseif met == 63 % cyl_are_dia20_mean
-        D = mean(dis(21:40));
-    elseif met == 64 % cyl_len_dia20_mean
-        D = mean(dis(41:60));
-    elseif met == 65 % cyl_vol_dia20_max
-        D = max(dis(1:20));
-    elseif met == 66 % cyl_are_dia20_max
-        D = max(dis(21:40));
-    elseif met == 67 % cyl_len_dia20_max
-        D = max(dis(41:60));
-    end
-    
+  dis = max(Data.CylDiaDis(T,:),[],1)-min(Data.CylDiaDis(T,:),[],1);
+  M = mean(Data.CylDiaDis(T,:),1);
+  I = M > 0;
+  dis(I) = dis(I)./M(I);
+  if met == 56 % cyl_vol_dia10_mean
+    D = mean(dis(1:10));
+  elseif met == 57 % cyl_are_dia10_mean
+    D = mean(dis(21:30));
+  elseif met == 58 % cyl_len_dia10_mean
+    D = mean(dis(41:50));
+  elseif met == 59 % cyl_vol_dia10_max
+    D = max(dis(1:10));
+  elseif met == 60 % cyl_are_dia10_max
+    D = max(dis(21:30));
+  elseif met == 61 % cyl_len_dia10_max
+    D = max(dis(41:50));
+  elseif met == 62 % cyl_vol_dia20_mean
+    D = mean(dis(1:20));
+  elseif met == 63 % cyl_are_dia20_mean
+    D = mean(dis(21:40));
+  elseif met == 64 % cyl_len_dia20_mean
+    D = mean(dis(41:60));
+  elseif met == 65 % cyl_vol_dia20_max
+    D = max(dis(1:20));
+  elseif met == 66 % cyl_are_dia20_max
+    D = max(dis(21:40));
+  elseif met == 67 % cyl_len_dia20_max
+    D = max(dis(41:60));
+  end
+
 elseif met < 74 % Cylinder zenith distribution metrics:
-    dis = max(Data.CylZenDis(T,:),[],1)-min(Data.CylZenDis(T,:),[],1);
-    M = mean(Data.CylZenDis(T,:),1);
-    I = M > 0;
-    dis(I) = dis(I)./M(I);
-    if met == 68 % cyl_vol_zen_mean
-        D = mean(dis(1:18));
-    elseif met == 69 % cyl_are_zen_mean
-        D = mean(dis(19:36));
-    elseif met == 70 % cyl_len_zen_mean
-        D = mean(dis(37:54));
-    elseif met == 71 % cyl_vol_zen_max
-        D = max(dis(1:18));
-    elseif met == 72 % cyl_are_zen_max
-        D = max(dis(19:36));
-    elseif met == 73 % cyl_len_zen_max
-        D = max(dis(37:54));
-    end
-    
+  dis = max(Data.CylZenDis(T,:),[],1)-min(Data.CylZenDis(T,:),[],1);
+  M = mean(Data.CylZenDis(T,:),1);
+  I = M > 0;
+  dis(I) = dis(I)./M(I);
+  if met == 68 % cyl_vol_zen_mean
+    D = mean(dis(1:18));
+  elseif met == 69 % cyl_are_zen_mean
+    D = mean(dis(19:36));
+  elseif met == 70 % cyl_len_zen_mean
+    D = mean(dis(37:54));
+  elseif met == 71 % cyl_vol_zen_max
+    D = max(dis(1:18));
+  elseif met == 72 % cyl_are_zen_max
+    D = max(dis(19:36));
+  elseif met == 73 % cyl_len_zen_max
+    D = max(dis(37:54));
+  end
+
 elseif met < 92 % Surface coverage metrics:
-    D = 1-mean(Data.CylSurfCov(T,:),1);
-    if met == 74 % all_mean_surf
-        D = D(1);
-    elseif met == 75 % trunk_mean_surf
-        D = D(2);
-    elseif met == 76 % branch_mean_surf
-        D = D(3);
-    elseif met == 77 % 1branch_mean_surf
-        D = D(4);
-    elseif met == 78 % 2branch_mean_surf
-        D = D(5);
-    elseif met == 79 % trunk+branch_mean_surf
-        D = D(2)+D(3);
-    elseif met == 80 % trunk+1branch_mean_surf
-        D = D(2)+D(4);
-    elseif met == 81 % trunk+1branch+2branch_mean_surf
-        D = D(2)+D(4)+D(5);
-    elseif met == 82 % 1branch+2branch_mean_surf
-        D = D(4)+D(5);
-    elseif met == 83 % all_min_surf
-        D = D(6);
-    elseif met == 84 % trunk_min_surf
-        D = D(7);
-    elseif met == 85 % branch_min_surf
-        D = D(8);
-    elseif met == 86 % 1branch_min_surf
-        D = D(9);
-    elseif met == 87 % 2branch_min_surf
-        D = D(10);
-    elseif met == 88 % trunk+branch_min_surf
-        D = D(6)+D(7);
-    elseif met == 89 % trunk+1branch_min_surf
-        D = D(6)+D(8);
-    elseif met == 90 % trunk+1branch+2branch_min_surf
-        D = D(6)+D(9)+D(10);
-    elseif met == 91 % 1branch+2branch_min_surf
-        D = D(9)+D(10);
-    end 
+  D = 1-mean(Data.CylSurfCov(T,:),1);
+  if met == 74 % all_mean_surf
+    D = D(1);
+  elseif met == 75 % trunk_mean_surf
+    D = D(2);
+  elseif met == 76 % branch_mean_surf
+    D = D(3);
+  elseif met == 77 % 1branch_mean_surf
+    D = D(4);
+  elseif met == 78 % 2branch_mean_surf
+    D = D(5);
+  elseif met == 79 % trunk+branch_mean_surf
+    D = D(2)+D(3);
+  elseif met == 80 % trunk+1branch_mean_surf
+    D = D(2)+D(4);
+  elseif met == 81 % trunk+1branch+2branch_mean_surf
+    D = D(2)+D(4)+D(5);
+  elseif met == 82 % 1branch+2branch_mean_surf
+    D = D(4)+D(5);
+  elseif met == 83 % all_min_surf
+    D = D(6);
+  elseif met == 84 % trunk_min_surf
+    D = D(7);
+  elseif met == 85 % branch_min_surf
+    D = D(8);
+  elseif met == 86 % 1branch_min_surf
+    D = D(9);
+  elseif met == 87 % 2branch_min_surf
+    D = D(10);
+  elseif met == 88 % trunk+branch_min_surf
+    D = D(6)+D(7);
+  elseif met == 89 % trunk+1branch_min_surf
+    D = D(6)+D(8);
+  elseif met == 90 % trunk+1branch+2branch_min_surf
+    D = D(6)+D(9)+D(10);
+  elseif met == 91 % 1branch+2branch_min_surf
+    D = D(9)+D(10);
+  end
 end
 % End of function
-end 
+end
+
+
+function Sensi = sensitivity_analysis(TreeDataAll,TreeId,Inputs,OptIn)
+
+% Computes the sensitivity of tree attributes (e.g. total volume) to the
+% changes of input parameter, the PatchDiam parameters, values. The
+% sensitivity is normalized, i.e. the relative change of attribute value
+% (= max change in attribute value divided by the value with the optimal
+% inputs) is divided by the relative change of input parameter value. The
+% sensitivity is also expressed as percentage, i.e. multiplied by 100. The
+% sensitivity is computed relative PatchDiam1, PatchDiam2Min, and
+% PatchDiam2Max. The sensitivity is computed only from the attributes with
+% the input parameter values the closest to the optimal value. This way we
+% get the local sensitivity in the neighborhood of the optimal input.
+%
+% Output:
+% Sensi       3D-array (#trees,#attributes,#inputs)
+
+TreeIds = unique(TreeId(:,1)); % Unique tree IDs
+nt = length(TreeIds); % number of trees
+A = [2 3; 1 3; 1 2]; % Keep other two inputs constant and let one varie
+Sensi = zeros(nt,size(TreeDataAll,3),3); % initialization of the output
+for t = 1:nt % trees
+  D = squeeze(TreeDataAll(t,:,:))'; % Select the attributes for the tree
+  In = squeeze(Inputs(t,:,:)); % Select the inputs for the tree
+  n = size(In,1); % number of different input-combinations
+  I = all(In == OptIn(t,1:3),2); % Which data are with the optimal inputs
+  ind = (1:1:n)';
+  I = ind(I);
+  for i = 1:3 % inputs
+    dI = abs(max(In(:,i),[],2)-OptIn(t,i));
+    dImin = min(dI(dI > 0)); % the minimum nonzero absolute change in inputs
+    dI = dImin/OptIn(t,i); % relative change in the attributes
+    K1 = abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) < dImin+0.0001;
+    K = K1 & abs(max(In(:,i),[],2)-min(OptIn(t,i),[],2)) > 0.0001;
+    K = ind(K); % the inputs the closest to the optimal input
+    J = all(In(K,A(i,:)) == OptIn(t,A(i,:)),2);
+    J = K(J); % input i the closest to the optimal and the other two equal the optimal
+    dD = max(abs(D(:,J)-D(:,I)),[],2);
+    dD = dD./D(:,I); % relative change in the input
+    d = dD/dI*100; % relative sensitivity as a percentage
+    Sensi(t,:,i) = round(100*d)/100;
+  end
+end
+% End of function
+end
