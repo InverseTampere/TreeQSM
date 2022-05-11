@@ -861,7 +861,7 @@ function treedata = cylinder_distribution(treedata,cyl,dist)
 % diameter, zenith, and azimuth
 if strcmp(dist,'Dia')
   Par = cyl.radius;
-  n = ceil(max(cyl.radius));
+  n = ceil(max(200*cyl.radius));
   a = 0.005; % diameter in 1 cm classes
 elseif strcmp(dist,'Zen')
   Par = 180/pi*acos(cyl.axis(:,3));
@@ -890,7 +890,6 @@ function treedata = cylinder_height_distribution(treedata,cylinder,ind)
 
 Rad = cylinder.radius;
 Len = cylinder.length;
-Sta = cylinder.start;
 Axe = cylinder.axis;
 
 %% Wood part height distributions
@@ -900,9 +899,9 @@ MaxHei= ceil(treedata.TreeHeight);
 treedata.VolCylHei = zeros(1,MaxHei);
 treedata.AreCylHei = zeros(1,MaxHei);
 treedata.LenCylHei = zeros(1,MaxHei);
-End = Sta+[Len.*Axe(:,1) Len.*Axe(:,2) Len.*Axe(:,3)];
-bot = min(Sta(:,3));
-B = Sta(:,3)-bot;
+End = cylinder.start+[Len.*Axe(:,1) Len.*Axe(:,2) Len.*Axe(:,3)];
+bot = min(cylinder.start(:,3));
+B = cylinder.start(:,3)-bot;
 T = End(:,3)-bot;
 for j = 1:MaxHei
   I1 = B >= (j-2) & B < (j-1); % base below this bin
