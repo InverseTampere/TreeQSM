@@ -549,12 +549,12 @@ triangulation.top = max(Vert(:,3));
 triangulation.triah = TriaHeight;
 triangulation.triaw = TriaWidth;
 
-figure(5)
-point_cloud_plotting(P,5,6)
-patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
-% hold on
-% arrow_plot(Cs,0.2*Ns,5)
-% hold off
-% axis equal
-alpha(1)
+% figure(5)
+% point_cloud_plotting(P,5,6)
+% patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
+% % hold on
+% % arrow_plot(Cs,0.2*Ns,5)
+% % hold off
+% % axis equal
+% alpha(1)
 
