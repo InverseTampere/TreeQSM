@@ -13,192 +13,220 @@
 % You should have received a copy of the GNU General Public License
 % along with TREEQSM.  If not, see <http://www.gnu.org/licenses/>.
 
-function Pass = filtering(P,r1,n1,d2,r2,n2,Scaling,AllPoints)
+function Pass = filtering(P,inputs)
 
 % ---------------------------------------------------------------------
 % FILTERING.M       Filters noise from point clouds.
 %
-% Version 2.00
-% Latest update     16 Aug 2017
+% Version 3.0.0
+% Latest update     3 May 2022
 %
-% Copyright (C) 2013-2017 Pasi Raumonen
+% Copyright (C) 2013-2022 Pasi Raumonen
 % ---------------------------------------------------------------------
 
-% Performs an initial filtering of the point cloud.
+% Filters the point cloud as follows:
 % 
-% At first the possible NaNs are removed.
+% 1) the possible NaNs are removed.
 % 
-% Secondly those points which belong to r1-balls that have at least
-% n1 points them are included. Comprehensive filtering here means that
-% the r1-ball is defined for every point whereas non-comprehensive means
-% that only a cover of point cloud with r1-balls is defined
+% 2) (optional, done if filter.k > 0) Statistical kth-nearest neighbor 
+% distance outlier filtering based on user defined "k" (filter.k) and
+% multiplier for standard deviation (filter.nsigma): Determines the 
+% kth-nearest neighbor distance for all points and then removes the points 
+% whose distances are over average_distance + nsigma*std. Computes the 
+% statistics for each meter layer in vertical direction so that the
+% average distances and SDs can change as the point density decreases.
+% 
+% 3) (optional, done if filter.radius > 0) Statistical point density 
+% filtering based on user defined ball radius (filter.radius) and multiplier 
+% for standard deviation (filter.nsigma): Balls of radius "filter.radius"
+% centered at each point are defined for all points and the number of
+% points included ("point density") are computed and then removes the points 
+% whose density is smaller than average_density - nsigma*std. Computes the 
+% statistics for each meter layer in vertical direction so that the
+% average densities and SDs can change as the point density decreases.
+% 
+% 4) (optional, done if filter.ncomp > 0) Small component filtering based
+% on user defined cover (filter.PatchDiam1, filter.BallRad1) and threshold
+% (filter.ncomp): Covers the point cloud and determines the connected
+% components of the cover and removes the points from the small components
+% that have less than filter.ncomp cover sets.
 %
-% Lastly small components (less than n2 r2-balls) are removed.
+% 5) (optional, done if filter.EdgeLength > 0) cubical downsampling of the 
+% point cloud based on user defined cube size (filter.EdgeLength): 
+% selects randomly one point from each cube
 %
-% For both filtering procedures the given minimum number (n1 and n2) 
-% applies for the first three meters above the ground and after that it is
-% modified for each meter by the change in the mean point density. That is,
-% if the point density decreases, which usually is the case, then the
-% minimum number is also decreased accordingly.
+% Does the filtering in the above order and thus always applies the next 
+% fitering to the point cloud already filtered by the previous methods. 
+% Statistical kth-nearest neighbor distance outlier filtering and the 
+% statistical point density filtering are meant to be exlusive to each
+% other.
 %
 % Inputs:
 % P         Point cloud
-% r1        Radius of the balls used in the first filtering
-% n1        Minimum number of points in the accepted balls of the first filtering
-% r2        Radius of the balls used in the second filtering
-% n2        Minimum number of balls in the components passing the second filtering
-% Scaling   If true, the first filtering threshold "n1" is scaled along the 
-%               height with average point density
-% Comp      If true, does the first filtering process for every point
-%
+% inputs    Inputs structure with the following subfields:
+%   filter.EdgeLength   Edge length of the cubes in the cubical downsampling
+%   filter.k            k of knn method
+%   filter.radius       Radius of the balls in the density filtering
+%   filter.nsigma       Multiplier for standard deviation, determines how
+%                         far from the mean the threshold is in terms of SD.
+%                         Used in both the knn and the density filtering
+%   filter.ncomp        Threshold number of components in the small
+%                         component filtering
+%   filter.PatchDiam1   Defines the patch/cover set size for the component 
+%                         filtering
+%   filter.BallRad1     Defines the neighbors for the component filtering
+%   filter.plot         If true, plots the filtered point cloud
 % Outputs:
 % Pass      Logical vector indicating points passing the filtering
+% ---------------------------------------------------------------------
 
+% Changes from version 2.0.0 to 3.0.0, 3 May 2022:
+% Major changes and additions.
+% 1) Added two new filtering options: statistical kth-nearest neighbor 
+%    distance outlier filtering and cubical downsampling.
+% 2) Changed the old point density filtering, which was based on given
+%    threshold, into statistical point density filtering, where the
+%    threshold is based on user defined statistical measure
+% 3) All the input parameters are given by "inputs"-structure that can be
+%    defined by "create_input" script   
+% 4) Streamlined the coding and what is displayed
 
-% Default firts filtering is not comprehensive and with scaling
-if nargin == 6
-    Scaling = false;
-    AllPoints = false; 
-elseif nargin == 7
-    AllPoints = false;
-end
-
+%% Initial data processing
 % Only double precision data
 if ~isa(P,'double')
-    P = double(P);
+  P = double(P);
 end
 % Only x,y,z-data
 if size(P,2) > 3
-    P = P(:,1:3);
+  P = P(:,1:3);
 end
 np = size(P,1);
 np0 = np;
+ind = (1:1:np)';
+Pass = false(np,1);
 
-% Remove possible NaNs
-I = any(isnan(P),2);
-if any(I)
-    P = P(~I,:);
+disp('----------------------')
+disp(' Filtering...')
+disp(['  Points before filtering:  ',num2str(np)])
+
+%% Remove possible NaNs
+F = ~any(isnan(P),2);
+if nnz(F) < np
+  disp(['  Points with NaN removed:  ',num2str(np-nnz(Pass))])
+  ind = ind(F);
+end 
+
+%% Statistical kth-nearest neighbor distance outlier filtering
+if inputs.filter.k > 0
+  % Compute the knn distances
+  Q = P(ind,:);
+  np = size(Q,1);
+  [~, kNNdist] = knnsearch(Q,Q,'dist','euclidean','k',inputs.filter.k);
+  kNNdist = kNNdist(:,end);
+
+  % Change the threshold kNNdistance according the average and standard 
+  % deviation for every vertical layer of 1 meter in height
+  hmin = min(Q(:,3));
+  hmax = max(Q(:,3));
+  H = ceil(hmax-hmin);
+  F = false(np,1);
+  ind = (1:1:np)';
+  for i = 1:H
+    I = Q(:,3) < hmin+i & Q(:,3) >= hmin+i-1;
+    points = ind(I);
+    d = kNNdist(points);
+    J = d < mean(d)+inputs.filter.nsigma*std(d);
+    points = points(J);
+    F(points) = 1;
+  end
+  ind = ind(F);
+  disp(['  Points removed as statistical outliers:  ',num2str(np-length(ind))])
 end
 
+%% Statistical point density filtering
+if inputs.filter.radius > 0
+  Q = P(ind,:);
+  np = size(Q,1);
 
-%% Partition the point cloud into cubes
-[partition,CC] = cubical_partition(P,r1);
+  % Partition the point cloud into cubes
+  [partition,CC] = cubical_partition(Q,inputs.filter.radius);
 
-if ~AllPoints
-    % Do the first filtering with a cover, not comprehensive filtering
-    %% Generate a cover and determine the largest (number of points) ball for each point
-    NotInspected = true(np,1);
-    NumOfPoints = zeros(np,1);
-    r1 = r1^2;
-    for i = 1:np
-        if NotInspected(i)
-            points = partition(CC(i,1)-1:CC(i,1)+1,CC(i,2)-1:CC(i,2)+1,CC(i,3)-1:CC(i,3)+1);
-            points = vertcat(points{:,:});
-            cube = P(points,:);
-            dist = (P(i,1)-cube(:,1)).^2+(P(i,2)-cube(:,2)).^2+(P(i,3)-cube(:,3)).^2;
-            J = dist < r1;
-            I = points(J);
-            NotInspected(I) = false;
-            N = NumOfPoints(I);
-            n = length(I);
-            K = N < n;
-            NumOfPoints(I(K)) = n;
-        end
-    end
-else
-    % Do the first filtering comprehensively by defining the neighborhoods
-    % for all points
-    
-    %% Generate the balls and determine the number of points for each point
-    NumOfPoints = zeros(np,1);
-    r1 = r1^2;
-    for i = 1:np
-        points = partition(CC(i,1)-1:CC(i,1)+1,CC(i,2)-1:CC(i,2)+1,CC(i,3)-1:CC(i,3)+1);
-        points = vertcat(points{:,:});
-        cube = P(points,:);
-        dist = (P(i,1)-cube(:,1)).^2+(P(i,2)-cube(:,2)).^2+(P(i,3)-cube(:,3)).^2;
+  % Determine the number of points inside a ball for each point
+  NumOfPoints = zeros(np,1);
+  r1 = inputs.filter.radius^2;
+  for i = 1:np
+    if NumOfPoints(i) == 0
+      points = partition(CC(i,1)-1:CC(i,1)+1,CC(i,2)-1:CC(i,2)+1,CC(i,3)-1:CC(i,3)+1);
+      points = vertcat(points{:,:});
+      cube = Q(points,:);
+      p = partition{CC(i,1),CC(i,2),CC(i,3)};
+      for j = 1:length(p)
+        dist = (Q(p(j),1)-cube(:,1)).^2+(Q(p(j),2)-cube(:,2)).^2+(Q(p(j),3)-cube(:,3)).^2;
         J = dist < r1;
-        NumOfPoints(i) = nnz(J);
+        NumOfPoints(p(j)) = nnz(J);
+      end
     end
+  end
+
+  % Change the threshold point density according the average and standard 
+  % deviation for every vertical layer of 1 meter in height
+  hmin = min(Q(:,3));
+  hmax = max(Q(:,3));
+  H = ceil(hmax-hmin);
+  F = false(np,1);
+  ind = (1:1:np)';
+  for i = 1:H
+    I = Q(:,3) < hmin+i & Q(:,3) >= hmin+i-1;
+    points = ind(I);
+    N = NumOfPoints(points);
+    J = N > mean(N)-inputs.filter.nsigma*std(N);
+    points = points(J);
+    F(points) = 1;
+  end
+  ind = ind(F);
+  disp(['  Points removed as statistical outliers:  ',num2str(np-length(ind))])
 end
-clearvars partition CC
 
+%% Small component filtering
+if inputs.filter.ncomp > 0
+  % Cover the point cloud with patches
+  input.BallRad1 = inputs.filter.BallRad1;
+  input.PatchDiam1 = inputs.filter.PatchDiam1;
+  input.nmin1 = 0;
+  Q = P(ind,:);
+  np = size(Q,1);
+  cover = cover_sets(Q,input);
 
-%% First filtering
-if Scaling
-    % Use smaller treshold for upper parts of the tree
-    % Change the treshold "n1" according the average points in the cover
-    % sets for every meter
-    hmin = min(P(:,3));
-    hmax = max(P(:,3));
-    H = ceil(hmax-hmin);
-    D = zeros(H,1);
-    J = false(np,1);
-    Pass = false(np,1);
-    A = (1:1:np)';
-    for i = 1:H
-        I = P(:,3) < hmin+i;
-        K = I&~J;
-        J = I;
-        D(i) = ceil(mean(NumOfPoints(K)));
-        if i <= 2
-            M = A(K);
-            N = NumOfPoints(K) >= n1;
-            M = M(N);
-            Pass(M) = true;
-        else
-            M = A(K);
-            m = max(ceil(n1*D(i)/D(2)),ceil(n1/3));
-            N = NumOfPoints(K) >= m;
-            M = M(N);
-            Pass(M) = true;
-        end
-    end
-else
-    Pass = NumOfPoints >= n1;
+  % Determine the separate components
+  Components = connected_components(cover.neighbor,0,inputs.filter.ncomp);
+
+  % The filtering
+  B = vertcat(Components{:}); % patches in the components
+  points = vertcat(cover.ball{B}); % points in the components
+  F = false(np,1);
+  F(points) = true;
+  ind = ind(F);
+  disp(['  Points with small components removed:  ',num2str(np-length(ind))])
 end
-clearvars NumOfPoints
 
-% Display filtering results
+%% Cubical downsampling
+if inputs.filter.EdgeLength > 0
+  Q = P(ind,:);
+  np = size(Q,1);
+  F = cubical_downsampling(Q,inputs.filter.EdgeLength);
+  ind = ind(F);
+  disp(['  Points removed with downsampling:  ',num2str(np-length(ind))])
+end
+
+%% Define the output and display summary results
+Pass(ind) = true;
 np = nnz(Pass);
-nf = np0-np;
-str = ['    All points: ',num2str(np0),', First filtering: ',num2str(nf),', Points left: ',num2str(np)];
-disp(str)
-
-
-%% Cover the point cloud with r2-balls for the second filtering
-clear inputs
-inputs.BallRad1 = r2;
-inputs.PatchDiam1 = d2;
-inputs.nmin1 = 0;
-cover = cover_sets(P(Pass,1:3),inputs);
-
-
-%% Determine the separate components
-Components = connected_components(cover.neighbor,0,n2);
-
-
-%% Second filtering
-B = vertcat(Components{:});
-I = vertcat(cover.ball{B});
-J = false(np,1);
-J(I) = true;
-I = (1:1:np0)';
-I = I(Pass);
-I = I(~J);
-Pass(I) = false;
-
-% Display filtering results
-nf = np-nnz(Pass);
-npl = nnz(Pass);
-str = ['    All points: ',num2str(np),', Second filtering: ',num2str(nf),', Points left: ',num2str(npl)];
-disp(str)
-
-nf = np0-npl;
-str = ['    All points: ',num2str(np0),', All filtered points: ',num2str(nf),', Points left: ',num2str(npl)];
-disp(str)
-
+disp(['  Points removed in total: ',num2str(np0-np)])
+disp(['  Points removed in total (%): ',num2str(round((1-np/np0)*1000)/10)])
+disp(['  Points left: ',num2str(np)])
 
 %% Plot the filtered and unfiltered point clouds
-comparison_plot(P(Pass,:),P,1,5)
-point_cloud_plotting(P(Pass,:),2,5)
+if inputs.filter.plot
+  plot_comparison(P(Pass,:),P(~Pass,:),1,1,1)
+  plot_point_cloud(P(Pass,:),2,1)
+end
