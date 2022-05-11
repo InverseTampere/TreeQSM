@@ -19,10 +19,10 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 % CURVE_BASED_TRIANGULATION.M   Reconstructs a triangulation for the
 %                               stem-buttress surface based on boundary curves
 %
-% Version 1.0.3
-% Latest update     11 Aug 2020
+% Version 1.1.0
+% Latest update     3 May 2022
 %
-% Copyright (C) 2015-2020 Pasi Raumonen
+% Copyright (C) 2015-2022 Pasi Raumonen
 % ---------------------------------------------------------------------
 %
 % Inputs:
@@ -34,7 +34,8 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 % triangulation  Structure field defining the triangulation. Contains
 %                   the following main fields:
 %   vert            Vertices of the triangulation model (nv x 3)-matrix
-%   facet           Facets (triangles) of the triangulation (the vertices forming the facets)
+%   facet           Facets (triangles) of the triangulation 
+%                     (the vertices forming the facets)
 %   fvd             Color information of the facets for plotting with "patch"
 %   volume          Volume enclosed by the facets in liters
 %   bottom          The z-coordinate of the bottom of the model
@@ -42,6 +43,19 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 %   triah           TriaHeight
 %   triaw           TriaWidth
 % ---------------------------------------------------------------------
+
+% Changes from version 1.0.2 to 1.1.0, 3 May 2022:
+% 1) Increased the radius of the balls at seed points from TriaWidth to 
+%    2*TriaWidth in the input of "boundary_curve"
+% 2) Added triangle orientation check after the side is covered with
+%    triangles so that the surface normals are pointing outward 
+% 3) Modified the check if the new boundary curve changes only a little and 
+%    then stop reconstruction  
+% 4) Added halving the triangle height if the boundary curve length has
+%    increased three times.
+% 5) Changed the bottom level from the smallest z-coordinate to the  
+%    average of the lowest 100 z-coordinates. 
+% 6) Minor streamlining the code and added more comments
 
 % Changes from version 1.0.2 to 1.0.3, 11 Aug 2020:
 % 1) Small changes in the code when computing the delaunay triangulation
@@ -57,7 +71,7 @@ function triangulation = curve_based_triangulation(P,TriaHeight,TriaWidth)
 np = size(P,1);
 [~,I] = sort(P(:,3),'descend');
 P = P(I,:);
-Hbot = P(end,3);
+Hbot = mean(P(end-100:end,3));
 Htop = P(1,3);
 N = ceil((Htop-Hbot)/TriaHeight);
 Vert = zeros(1e5,3);
@@ -103,6 +117,7 @@ nv = size(Curve,1); % number of vertices in the curve
 Vert(1:nv,:) = Curve;
 VertLay(1:nv) = i;
 t = 0;
+m00 = size(Curve,1);
 
 %% Determine the other boundary curves and the triangulation downwards
 i0 = i;
@@ -110,7 +125,7 @@ i = i0+1;
 nv0 = 0;
 LayerBottom = Htop-i*TriaHeight;
 while i <= N && pe < np
-  % Define thin horizontal cross section of the stem
+  %% Define thin horizontal cross section of the stem
   ps = pe+1;
   k = 1;
   while ps+k <= np && P(ps+k,3) > LayerBottom
@@ -119,32 +134,28 @@ while i <= N && pe < np
   pe = ps+k-1;
   PSection = P(ps:pe,:);
 
-  % Create boundary curves using the previous curves as seeds
-  m0 = size(Curve,1);
+  %% Create boundary curves using the previous curves as seeds
   if i > i0+1
     nv0 = nv1;
   end
-
   % Define seed points:
   Curve(:,3) = Curve(:,3)-TriaHeight;
   Curve0 = Curve;
 
   % Create new boundary curve
-  [Curve,Ind] = boundary_curve(PSection,Curve,TriaWidth,1.5*TriaWidth);
+  [Curve,Ind] = boundary_curve(PSection,Curve,2*TriaWidth,1.5*TriaWidth);
 
   if isempty(Curve)
     disp('  No triangulation: Empty curve')
     triangulation = zeros(0,1);
     return
   end
-
-  % Check if the curve intersects itself
   Curve(:,3) = max(Curve(:,3));
 
-  % Check self-intersection
+  %% Check if the curve intersects itself
   [Intersect,IntersectLines] = check_self_intersection(Curve(:,1:2));
 
-  % If self-intersection, try to modify the curve
+  %% If self-intersection, try to modify the curve
   j = 1;
   while Intersect && j <= 10
     n = size(Curve,1);
@@ -175,11 +186,12 @@ while i <= N && pe < np
 
   m = size(Curve,1);
   if Intersect
-    % The curve self-intersects. Use previous curve and extrapolate to the bottom
+    %% Curve self-intersects, use previous curve to extrapolate to the bottom
     H = Curve0(1,3)-Hbot;
     if H > 0.75 && Intersect
       triangulation = zeros(0,1);
-      disp(['  No triangulation: Self-intersection at ',num2str(H),' m from the bottom'])
+      disp(['  No triangulation: Self-intersection at ',...
+        num2str(H),' m from the bottom'])
       return
     end
     Curve = Curve0;
@@ -194,7 +206,7 @@ while i <= N && pe < np
       end
       Vert(nv+1:nv+m,:) = Curve;
       VertLay(nv+1:nv+m) = i;
-      % Define the triangulation between two boundary curves
+      %% Define the triangulation between two boundary curves
       nv1 = nv;
       nv = nv+m;
       t0 = t+1;
@@ -252,19 +264,25 @@ while i <= N && pe < np
     i = N+1;
 
   else
-    % No self-intersection, proceed with triangulation and new curves
+    %% No self-intersection, proceed with triangulation and new curves
     Vert(nv+1:nv+m,:) = Curve;
     VertLay(nv+1:nv+m) = i;
 
-    % If no change, stop the reconstruction
-    if m == m0
-      Same = Curve0 == Curve;
-      if all(Same)
-        N = i;
-      end
+    %% If little change between Curve and Curve0, stop the reconstruction
+    C = intersect(Curve0,Curve,"rows");
+    if size(C,1) > 0.7*size(Curve,1)
+      N = i;
     end
 
-    % Define the triangulation between two boundary curves
+    %% If the boundary curve has grown much longer than originally, then
+    % decrease the triangle height
+    if m > 3*m00
+      TriaHeight = TriaHeight/2; % use half the height
+      N = N+ceil((N-i)/2); % update the number of layers 
+      m00 = m;
+    end
+
+    %% Define the triangulation between two boundary curves
     nv1 = nv;
     nv = nv+m;
     t0 = t+1;
@@ -326,6 +344,35 @@ VertLay = VertLay(1:nv);
 Tria = Tria(1:t,:);
 TriaLay = TriaLay(1:t);
 
+%% Check the orientation of the triangles 
+% so that surface normals are outward pointing
+a = round(t/10); % select the top triangles
+U = Vert(Tria(1:a,2),:)-Vert(Tria(1:a,1),:);
+V = Vert(Tria(1:a,3),:)-Vert(Tria(1:a,1),:);
+Center = mean(Vert(1:nv-1,:)); % the center of the stem
+C = Vert(Tria(1:a,1),:)+0.25*V+0.25*U;
+W = C(:,1:2)-Center(1:2); % vectors from the triagles to the stem's center
+Normals = cross(U,V);
+if nnz(sum(Normals(:,1:2).*W,2) < 0) > 0.5*length(C)
+  Tria(1:t,1:2) = [Tria(1:t,2) Tria(1:t,1)];
+end
+
+% U = Vert(Tria(1:t,2),:)-Vert(Tria(1:t,1),:);
+% V = Vert(Tria(1:t,3),:)-Vert(Tria(1:t,1),:);
+% Normals = cross(U,V);
+% Normals = normalize(Normals);
+% C = Vert(Tria(1:t,1),:)+0.25*V+0.25*U;
+% fvd = ones(t,1);
+% figure(5)
+% point_cloud_plotting(P(1,:),5,6)
+% patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
+% alpha(1)
+% hold on
+% arrow_plot(C,0.1*Normals,5)
+% hold off
+% axis equal
+% pause
+
 
 %% Remove possible double triangles
 nt = size(Tria,1);
@@ -355,12 +402,13 @@ TriaLay = TriaLay(Keep);
 
 %% Generate triangles for the horizontal layers and compute the volumes
 % Triangles of the ground layer
+% Select the boundary curve:
 N = double(max(VertLay));
 I = VertLay == N;
 Vert(I,3) = Hbot;
 ind = (1:1:nv)';
 ind = ind(I);
-Curve = Vert(I,:);
+Curve = Vert(I,:); % Boundary curve of the bottom
 n = size(Curve,1);
 if n < 10
   triangulation = zeros(0,1);
@@ -368,6 +416,7 @@ if n < 10
   return
 end
 
+% Define Delaunay triangulation for the bottom
 C = zeros(n,2);
 C(:,1) = (1:1:n)';
 C(1:n-1,2) = (2:1:n)';
@@ -388,20 +437,21 @@ GroundTria(:,1) = ind(GroundTria(:,1));
 GroundTria(:,2) = ind(GroundTria(:,2));
 GroundTria(:,3) = ind(GroundTria(:,3));
 
-V = Curve(GroundTria0(:,3),:)-Curve(GroundTria0(:,1),:);
+% Compute the normals and areas
 U = Curve(GroundTria0(:,2),:)-Curve(GroundTria0(:,1),:);
+V = Curve(GroundTria0(:,3),:)-Curve(GroundTria0(:,1),:);
 Cg = Curve(GroundTria0(:,1),:)+0.25*V+0.25*U;
 Ng = cross(U,V);
-I = Ng(:,3) > 0;
+I = Ng(:,3) > 0; % Check orientation
 Ng(I,:) = -Ng(I,:);
 Ag = 0.5*sqrt(sum(Ng.*Ng,2));
 Ng = 0.5*[Ng(:,1)./Ag Ng(:,2)./Ag Ng(:,3)./Ag];
 
-I = Ag > 0;
-Ag = Ag(I);
-Cg = Cg(I,:);
-Ng = Ng(I,:);
+% Remove possible negative area triangles:
+I = Ag > 0;   Ag = Ag(I);   Cg = Cg(I,:);   Ng = Ng(I,:);
 GroundTria = GroundTria(I,:);
+
+% Update the triangles:
 Tria = [Tria; GroundTria];
 TriaLay = [TriaLay; (N+1)*ones(size(GroundTria,1),1)];
 
@@ -412,12 +462,14 @@ if abs(sum(Ag)-polyarea(Curve(:,1),Curve(:,2))) > 0.001*sum(Ag)
 end
 
 % Triangles of the top layer
+% Select the top curve:
 N = double(min(VertLay));
 I = VertLay == N;
 ind = (1:1:nv)';
 ind = ind(I);
 Curve = Vert(I,:);
 CenterTop = mean(Curve);
+%  Delaunay triangulation of the top:
 n = size(Curve,1);
 C = zeros(n,2);
 C(:,1) = (1:1:n)';
@@ -439,8 +491,9 @@ TopTria(:,1) = ind(TopTria(:,1));
 TopTria(:,2) = ind(TopTria(:,2));
 TopTria(:,3) = ind(TopTria(:,3));
 
-V = Curve(TopTria0(:,3),:)-Curve(TopTria0(:,1),:);
+% Compute the normals and areas:
 U = Curve(TopTria0(:,2),:)-Curve(TopTria0(:,1),:);
+V = Curve(TopTria0(:,3),:)-Curve(TopTria0(:,1),:);
 Ct = Curve(TopTria0(:,1),:)+0.25*V+0.25*U;
 Nt = cross(U,V);
 I = Nt(:,3) < 0;
@@ -448,11 +501,11 @@ Nt(I,:) = -Nt(I,:);
 At = 0.5*sqrt(sum(Nt.*Nt,2));
 Nt = 0.5*[Nt(:,1)./At Nt(:,2)./At Nt(:,3)./At];
 
-I = At > 0;
-At = At(I);
-Ct = Ct(I,:);
-Nt = Nt(I,:);
+% Remove possible negative area triangles:
+I = At > 0;   At = At(I);   Ct = Ct(I,:);   Nt = Nt(I,:);
 TopTria = TopTria(I,:);
+
+% Update the triangles:
 Tria = [Tria; TopTria];
 TriaLay = [TriaLay; N*ones(size(TopTria,1),1)];
 
@@ -466,19 +519,14 @@ end
 B = TriaLay <= max(VertLay) & TriaLay > 1;
 U = Vert(Tria(B,2),:)-Vert(Tria(B,1),:);
 V = Vert(Tria(B,3),:)-Vert(Tria(B,1),:);
-Csb = Vert(Tria(B,1),:)+0.25*V+0.25*U;
-Nsb = cross(V,U);
-Asb = 0.5*sqrt(sum(Nsb.*Nsb,2));
-Nsb = 0.5*[Nsb(:,1)./Asb Nsb(:,2)./Asb Nsb(:,3)./Asb];
-I = Asb > 0;
-if any(~I)
-  Nsb = Nsb(I,:);
-  Asb = Asb(I);
-  Csb = Csb(I,:);
-end
+Cs = Vert(Tria(B,1),:)+0.25*V+0.25*U;
+Ns = cross(U,V);
+As = 0.5*sqrt(sum(Ns.*Ns,2));
+Ns = 0.5*[Ns(:,1)./As Ns(:,2)./As Ns(:,3)./As];
+I = As > 0;  Ns = Ns(I,:); As = As(I); Cs = Cs(I,:);
 
 % Volumes in liters
-VTotal = sum(At.*sum(Ct.*Nt,2))+sum(Asb.*sum(Csb.*Nsb,2))+sum(Ag.*sum(Cg.*Ng,2));
+VTotal = sum(At.*sum(Ct.*Nt,2))+sum(As.*sum(Cs.*Ns,2))+sum(Ag.*sum(Cg.*Ng,2));
 VTotal = round(10000*VTotal/3)/10;
 
 if VTotal < 0
@@ -487,14 +535,13 @@ if VTotal < 0
   return
 end
 
-V = mat_vec_subtraction(Vert(Tria(:,1),1:2),CenterTop(1:2));
+V = Vert(Tria(:,1),1:2)-CenterTop(1:2);
 fvd = sqrt(sum(V.*V,2));
-clear Model
 triangulation.vert = single(Vert);
 triangulation.facet = uint16(Tria);
 triangulation.fvd = single(fvd);
 triangulation.volume = VTotal;
-triangulation.SideArea = sum(Asb);
+triangulation.SideArea = sum(As);
 triangulation.BottomArea = sum(Ag);
 triangulation.TopArea = sum(At);
 triangulation.bottom = min(Vert(:,3));
@@ -502,10 +549,12 @@ triangulation.top = max(Vert(:,3));
 triangulation.triah = TriaHeight;
 triangulation.triaw = TriaWidth;
 
-% figure(5)
-% plot3(Vert(1,1),Vert(1,2),Vert(1,3))
-% point_cloud_plotting(P,5,6)
-% patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
+figure(5)
+point_cloud_plotting(P,5,6)
+patch('Vertices',Vert,'Faces',Tria,'FaceVertexCData',fvd,'FaceColor','flat')
+% hold on
+% arrow_plot(Cs,0.2*Ns,5)
+% hold off
 % axis equal
-% alpha(0.8)
-% pause(0.01)
+alpha(1)
+
