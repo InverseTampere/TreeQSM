@@ -7,7 +7,7 @@
 
 TreeQSM is a modelling method that reconstructs quantitative structure models (QSMs) for trees from point clouds. A QSM consists of a hierarchical collection of cylinders estimating topological, geometrical and volumetric details of the woody structure of the tree. The input point cloud, which is usually produced by a terrestrial laser scanner, must contain only one tree, which is intended to be modelled, but the point cloud may contain also some points from the ground and understory. Moreover, the point cloud should not contain significant amount of noise or points from leaves as these are interpreted as points from woody parts of the tree and can therefore lead to erroneous results. Much more details of the method and QSMs can be found from the manual that is part of the code distribution.
 
-![QSM image](https://github.com/InverseTampere/TreeQSM/raw/master/manual/fig_point_cloud_qsm.png)
+![QSM image](https://github.com/InverseTampere/TreeQSM/tree/master/manual/fig_point_cloud_qsm.png)
 
 ### References
 
