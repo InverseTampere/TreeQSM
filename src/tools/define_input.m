@@ -72,9 +72,9 @@ inputs(nt).PatchDiam1 = 0;
 
 %% Estimate the PatchDiam and BallRad parameters
 for i = 1:nt
+  % Select point cloud
+  P = matobj.(names{i});
   if nt > 1
-    % Select point cloud
-    P = matobj.(names{i});
     inputs(i) = Inputs;
     inputs(i).name = names{i};
     inputs(i).tree = i;
