@@ -49,24 +49,8 @@ function inputs = define_input(Clouds,nPD1,nPD2Min,nPD2Max)
 create_input
 Inputs = inputs;
 
-% If given multiple clouds, extract the names
-if ischar(Clouds) || isstring(Clouds)
-  matobj = matfile([Clouds,'.mat']);
-  names = fieldnames(matobj);
-  i = 1;
-  n = max(size(names));
-  while i <= n && ~strcmp(names{i,:},'Properties')
-    i = i+1;
-  end
-  I = (1:1:n);
-  I = setdiff(I,i);
-  names = names(I,1);
-  names = sort(names);
-  nt = max(size(names)); % number of trees/point clouds
-else
-  P = Clouds;
-  nt = 1;
-end
+P = transpose(Clouds);
+nt = 1;
 inputs(nt).PatchDiam1 = 0;
 
 
