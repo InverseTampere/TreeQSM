@@ -265,8 +265,6 @@ if inputs.disp == 2
   disp('Progress:')
 end
 
-P=transpose(P)
-
 %% Make the point cloud into proper form
 % only 3-dimensional data
 if size(P,2) > 3

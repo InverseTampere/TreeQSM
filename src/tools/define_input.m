@@ -49,7 +49,9 @@ function inputs = define_input(Clouds,nPD1,nPD2Min,nPD2Max)
 create_input
 Inputs = inputs;
 
-P = transpose(Clouds);
+% P = transpose(Clouds);
+P = Clouds;
+
 nt = 1;
 inputs(nt).PatchDiam1 = 0;
 
@@ -81,7 +83,7 @@ for i = 1:nt
   hSec = hSecTop-hSecBot;
   Sec = Hei > hSecBot & Hei < hSecTop;
   StemBot = P(Sec,1:3);
-
+  
   % Estimate stem axis (point and direction)
   AxisPoint = mean(StemBot);
   V = StemBot-AxisPoint;
