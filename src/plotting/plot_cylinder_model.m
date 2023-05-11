@@ -167,7 +167,7 @@ fvd = fvd(1:f,:);
 figure(fig)
 plot3(Vert(1,1),Vert(1,2),Vert(1,3))
 patch('Vertices',Vert,'Faces',Facets,'FaceVertexCData',fvd,'FaceColor','flat')
-alpha(alp)
+% alpha(alp)
 axis equal
 grid on
 view(-37.5,30)

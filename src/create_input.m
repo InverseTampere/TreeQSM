@@ -91,7 +91,7 @@ inputs.filter.ncomp = 2;
 inputs.filter.EdgeLength = 0.004;
 % Plot the filtering results automatically after the filtering if
 % filter.plot > 0
-inputs.filter.plot = 1;
+inputs.filter.plot = 0;
 
 %% Other inputs
 % These parameters don't affect the QSM-reconstruction but define what is

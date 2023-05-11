@@ -62,7 +62,7 @@ subplot(1,2,1)
 plot_cylinder_model(cylinder,'order',2,10)
 subplot(1,2,2)
 plot_cylinder_model(cylinder,'branch',2,10)
-
+saveas(gcf,'/mnt/c/contenda/modelo.png')
 %% figure 3, segmented point cloud and cylinder model
 plot_branch_segmentation(P,cover,segment,'order',3,1)
 hold on

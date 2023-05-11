@@ -492,10 +492,12 @@ for h = 1:nd
         %% Plot models and segmentations
         if inputs.plot >= 1
           if inputs.Tria
+            disp('plotting tria')
             plot_models_segmentations(P,cover2,segment2,cylinder,trunk,...
                 triangulation)
           else
             plot_models_segmentations(P,cover2,segment2,cylinder)
+            disp('plotting ')
           end
           if nd > 1 || na > 1 || ni > 1
             pause
