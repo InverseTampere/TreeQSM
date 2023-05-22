@@ -49,24 +49,10 @@ function inputs = define_input(Clouds,nPD1,nPD2Min,nPD2Max)
 create_input
 Inputs = inputs;
 
-% If given multiple clouds, extract the names
-if ischar(Clouds) || isstring(Clouds)
-  matobj = matfile([Clouds,'.mat']);
-  names = fieldnames(matobj);
-  i = 1;
-  n = max(size(names));
-  while i <= n && ~strcmp(names{i,:},'Properties')
-    i = i+1;
-  end
-  I = (1:1:n);
-  I = setdiff(I,i);
-  names = names(I,1);
-  names = sort(names);
-  nt = max(size(names)); % number of trees/point clouds
-else
-  P = Clouds;
-  nt = 1;
-end
+% P = transpose(Clouds);
+P = Clouds;
+
+nt = 1;
 inputs(nt).PatchDiam1 = 0;
 
 
@@ -97,7 +83,7 @@ for i = 1:nt
   hSec = hSecTop-hSecBot;
   Sec = Hei > hSecBot & Hei < hSecTop;
   StemBot = P(Sec,1:3);
-
+  
   % Estimate stem axis (point and direction)
   AxisPoint = mean(StemBot);
   V = StemBot-AxisPoint;

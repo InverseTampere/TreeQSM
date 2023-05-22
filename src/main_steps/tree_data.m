@@ -593,8 +593,10 @@ treedata.CrownDiamMax = L;
 %% Crown areas from convex hull and alpha shape:
 treedata.CrownAreaConv = A;
 alp = max(0.5,treedata.CrownDiamAve/10);
-shp = alphaShape(X(:,1),X(:,2),alp);
-treedata.CrownAreaAlpha = shp.area;
+% Miguel: alphaShape is NOT implemented in Octave
+%shp = alphaShape(X(:,1),X(:,2),alp);
+%treedata.CrownAreaAlpha = shp.area;
+treedata.CrownAreaAlpha = -9999.;
 
 %% Crown base
 % Define first major branch as the branch whose diameter > min(0.05*dbh,5cm)
@@ -682,8 +684,10 @@ if b > 0
   [K,V] = convhull(X(:,1),X(:,2),X(:,3));
   treedata.CrownVolumeConv = V;
   alp = max(0.5,treedata.CrownDiamAve/5);
-  shp = alphaShape(X(:,1),X(:,2),X(:,3),alp,'HoleThreshold',10000);
-  treedata.CrownVolumeAlpha = shp.volume;
+  % Miguel: alphaShape is NOT implemented in Octave
+  %shp = alphaShape(X(:,1),X(:,2),X(:,3),alp,'HoleThreshold',10000);
+  %treedata.CrownVolumeAlpha = shp.volume;
+  treedata.CrownVolumeAlpha = -9999.;
 
 else 
   % No branches

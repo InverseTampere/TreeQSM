@@ -91,7 +91,7 @@ inputs.filter.ncomp = 2;
 inputs.filter.EdgeLength = 0.004;
 % Plot the filtering results automatically after the filtering if
 % filter.plot > 0
-inputs.filter.plot = 1;
+inputs.filter.plot = 0;
 
 %% Other inputs
 % These parameters don't affect the QSM-reconstruction but define what is
@@ -105,14 +105,14 @@ inputs.model = 1;
 % Save the output struct QSM as a matlab-file into \result folder. 
 % If name = 'pine', tree = 2, model = 5, the name of the saved file is 
 % 'QSM_pine_t2_m5.mat':
-inputs.savemat = 1; 
+inputs.savemat = 0; 
 % Save the models in .txt-files (check "save_model_text.m"):
-inputs.savetxt = 1; 
+inputs.savetxt = 0; 
 % What are plotted during reconstruction process: 
 % 2 = plots the QSM, the segmentated point cloud and distributions, 
 % 1 = plots the QSM and the segmentated point cloud
 % 0 = plots nothing
-inputs.plot = 2; 
+inputs.plot = 0; 
 % What are displayed during the reconstruction: 2 = display all; 
 % 1 = display name, parameters and distances; 0 = display only the name:
-inputs.disp = 2; 
+inputs.disp = 0; 
